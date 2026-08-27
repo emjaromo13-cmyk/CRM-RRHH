@@ -401,10 +401,11 @@ export default function App() {
         )}
 
         {page === 'attendance' && (
-  <Attendance
-    assignments={assignments}
-    shiftTypes={shiftTypes}
-  />
+ <Attendance
+  assignments={assignments}
+  shiftTypes={shiftTypes}
+  employees={employees}
+/>
 )}
 
         {page === 'reports' && <Reports />}
