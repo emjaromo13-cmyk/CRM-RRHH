@@ -64,16 +64,17 @@ app.get('/api/test-db', async (req, res) => {
 app.get('/api/empleados', async (req, res) => {
   try {
     console.log('🔎 Ejecutando /api/empleados')
+
     const result = await pool.query(`
       SELECT
-  id,
-  nombre,
-  hora_inicio,
-  hora_fin,
-  horas,
-  activo
-FROM tipos_turno
-ORDER BY id
+        id,
+        nombre,
+        documento,
+        cargo,
+        username,
+        estado
+      FROM empleados
+      ORDER BY id
     `)
 
     res.json(result.rows)
