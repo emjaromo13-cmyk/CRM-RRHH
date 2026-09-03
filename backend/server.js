@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const { Pool } = require('pg')
+require('dotenv').config()
 
 const app = express()
 
@@ -9,11 +10,10 @@ const app = express()
 // =====================================================
 
 const pool = new Pool({
-  host: 'localhost',
-  port: 5432,
-  database: 'crm_rrhh',
-  user: 'postgres',
-  password: 'Emjaromo13'
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 })
 
 // =====================================================
@@ -24,7 +24,7 @@ app.use(cors())
 app.use(express.json())
 
 // =====================================================
-// RUTA DE PRUEBA DEL BACKEND
+// RUTA PRINCIPAL
 // =====================================================
 
 app.get('/', (req, res) => {
@@ -34,7 +34,7 @@ app.get('/', (req, res) => {
 })
 
 // =====================================================
-// RUTA DE PRUEBA DE POSTGRESQL
+// PRUEBA DE CONEXIÓN CON POSTGRESQL
 // =====================================================
 
 app.get('/api/test-db', async (req, res) => {
@@ -58,11 +58,321 @@ app.get('/api/test-db', async (req, res) => {
 })
 
 // =====================================================
+// OBTENER EMPLEADOS
+// =====================================================
+
+app.get('/api/empleados', async (req, res) => {
+  try {
+    console.log('🔎 Ejecutando /api/empleados')
+    const result = await pool.query(`
+      SELECT
+  id,
+  nombre,
+  hora_inicio,
+  hora_fin,
+  horas,
+  activo
+FROM tipos_turno
+ORDER BY id
+    `)
+
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error al obtener empleados:', error)
+
+    res.status(500).json({
+      mensaje: 'Error al obtener empleados',
+      error: error.message,
+    })
+  }
+})
+
+// =====================================================
+// CREAR EMPLEADO
+// =====================================================
+
+app.post('/api/empleados', async (req, res) => {
+  try {
+    const {
+      nombre,
+      documento,
+      cargo,
+      username,
+      estado,
+    } = req.body
+
+    const result = await pool.query(
+      `
+      INSERT INTO empleados
+        (nombre, documento, cargo, username, estado)
+      VALUES
+        ($1, $2, $3, $4, $5)
+      RETURNING
+        id,
+        nombre,
+        documento,
+        cargo,
+        username,
+        estado
+      `,
+      [
+        nombre,
+        documento,
+        cargo,
+        username,
+        estado || 'Activo',
+      ]
+    )
+
+    res.status(201).json(result.rows[0])
+  } catch (error) {
+    console.error('Error al crear empleado:', error)
+
+    res.status(500).json({
+      mensaje: 'Error al crear empleado',
+      error: error.message,
+    })
+  }
+})
+// =====================================================
+// OBTENER TIPOS DE TURNO
+// =====================================================
+
+app.get('/api/tipos-turno', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        id,
+        nombre,
+        hora_inicio,
+        hora_fin
+      FROM tipos_turno
+      ORDER BY id
+    `)
+
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error al obtener tipos de turno:', error)
+
+    res.status(500).json({
+      mensaje: 'Error al obtener tipos de turno',
+      error: error.message,
+    })
+  }
+})
+// =====================================================
+// OBTENER ASIGNACIONES
+// =====================================================
+
+app.get('/api/asignaciones', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT *
+      FROM asignaciones
+      ORDER BY id
+    `)
+
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error al obtener asignaciones:', error)
+
+    res.status(500).json({
+      mensaje: 'Error al obtener asignaciones',
+      error: error.message,
+    })
+  }
+})
+// =====================================================
+// OBTENER ASISTENCIAS
+// =====================================================
+
+app.get('/api/asistencias', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT *
+      FROM asistencias
+      ORDER BY id
+    `)
+
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error al obtener asistencias:', error)
+
+    res.status(500).json({
+      mensaje: 'Error al obtener asistencias',
+      error: error.message,
+    })
+  }
+})
+// =====================================================
+// OBTENER SEDES
+// =====================================================
+
+app.get('/api/sedes', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT *
+      FROM sedes
+      ORDER BY id
+    `)
+
+    res.json(result.rows)
+  } catch (error) {
+    console.error('Error al obtener sedes:', error)
+
+    res.status(500).json({
+      mensaje: 'Error al obtener sedes',
+      error: error.message,
+    })
+  }
+})
+// =====================================================
+// CREAR ASIGNACIÓN
+// =====================================================
+
+app.post('/api/asignaciones', async (req, res) => {
+  try {
+    const {
+      empleado_id,
+      sede_id,
+      fecha,
+      turno_id,
+    } = req.body
+
+    const result = await pool.query(
+      `
+      INSERT INTO asignaciones
+        (empleado_id, sede_id, fecha, turno_id)
+      VALUES
+        ($1, $2, $3, $4)
+      RETURNING
+        id,
+        empleado_id,
+        sede_id,
+        fecha,
+        turno_id
+      `,
+      [
+        empleado_id,
+        sede_id,
+        fecha,
+        turno_id,
+      ]
+    )
+
+    res.status(201).json(result.rows[0])
+  } catch (error) {
+    console.error('Error al crear asignación:', error)
+
+    res.status(500).json({
+      mensaje: 'Error al crear asignación',
+      error: error.message,
+    })
+  }
+})
+
+// =====================================================
+// EDITAR ASIGNACIÓN
+// =====================================================
+
+app.put('/api/asignaciones/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const {
+      empleado_id,
+      sede_id,
+      fecha,
+      turno_id,
+    } = req.body
+
+    const result = await pool.query(
+      `
+      UPDATE asignaciones
+      SET
+        empleado_id = $1,
+        sede_id = $2,
+        fecha = $3,
+        turno_id = $4
+      WHERE id = $5
+      RETURNING
+        id,
+        empleado_id,
+        sede_id,
+        fecha,
+        turno_id
+      `,
+      [
+        empleado_id,
+        sede_id,
+        fecha,
+        turno_id,
+        id,
+      ]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        mensaje: 'Asignación no encontrada',
+      })
+    }
+
+    res.json(result.rows[0])
+  } catch (error) {
+    console.error('Error al editar asignación:', error)
+
+    res.status(500).json({
+      mensaje: 'Error al editar asignación',
+      error: error.message,
+    })
+  }
+})
+
+// =====================================================
+// ELIMINAR ASIGNACIÓN
+// =====================================================
+
+app.delete('/api/asignaciones/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const result = await pool.query(
+      `
+      DELETE FROM asignaciones
+      WHERE id = $1
+      RETURNING id
+      `,
+      [id]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        mensaje: 'Asignación no encontrada',
+      })
+    }
+
+    res.json({
+      mensaje: 'Asignación eliminada correctamente',
+      id: result.rows[0].id,
+    })
+  } catch (error) {
+    console.error('Error al eliminar asignación:', error)
+
+    res.status(500).json({
+      mensaje: 'Error al eliminar asignación',
+      error: error.message,
+    })
+  }
+})
+
+// =====================================================
 // INICIAR SERVIDOR
 // =====================================================
 
 const PORT = process.env.PORT || 3000
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Servidor CRM-RRHH ejecutándose en http://localhost:${PORT}`)
+  console.log(
+    `Servidor CRM-RRHH ejecutándose en http://localhost:${PORT}`
+  )
 })

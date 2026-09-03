@@ -1,6 +1,26 @@
 import { useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 
+type Assignment = {
+  id: number
+  day: number
+  month: number
+  year: number
+  branch: string
+  employee: string
+  shift: string
+}
+
+type ShiftType = {
+  id: number
+  name: string
+  start?: string
+  end?: string
+  isSplit?: boolean
+  start2?: string
+  end2?: string
+}
+
 type AttendanceRecord = {
   id: number
   employee: string
@@ -13,54 +33,246 @@ type AttendanceRecord = {
   paidHours: number
 }
 
-export default function Reports() {
+type ReportsProps = {
+  assignments: Assignment[]
+  shiftTypes: ShiftType[]
+}
+
+function calculateHours(
+  start?: string,
+  end?: string,
+  start2?: string,
+  end2?: string
+) {
+  if (!start || !end) return 0
+
+  const getMinutes = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number)
+    return hours * 60 + minutes
+  }
+
+  let total =
+    getMinutes(end) - getMinutes(start)
+
+  if (start2 && end2) {
+    total +=
+      getMinutes(end2) -
+      getMinutes(start2)
+  }
+
+  // Turnos que pasan de medianoche
+  if (total < 0) {
+    total += 24 * 60
+  }
+
+  return total / 60
+}
+
+export default function Reports({
+  assignments,
+  shiftTypes,
+}: ReportsProps) {
+
   const records: AttendanceRecord[] = JSON.parse(
     localStorage.getItem('attendanceRecords') || '[]'
   )
 
-  const [selectedMonth, setSelectedMonth] = useState(
-    new Date().getMonth() + 1
-  )
+  const [selectedMonth, setSelectedMonth] =
+    useState(
+      new Date().getMonth()
+    )
 
-  const [selectedYear, setSelectedYear] = useState(
-    new Date().getFullYear()
-  )
+  const [selectedYear, setSelectedYear] =
+    useState(
+      new Date().getFullYear()
+    )
 
-  const [selectedBranch, setSelectedBranch] = useState('Todas')
+  const [selectedBranch, setSelectedBranch] =
+    useState('Todas')
+
+  // ============================================================
+  // MAPA DE HORAS POR TIPO DE TURNO
+  // ============================================================
+
+  const shiftHours = useMemo(() => {
+
+    const hoursMap: Record<string, number> = {}
+
+    shiftTypes.forEach(shift => {
+
+      if (shift.start && shift.end) {
+
+        hoursMap[shift.name] =
+          calculateHours(
+            shift.start,
+            shift.end,
+            shift.start2,
+            shift.end2
+          )
+      }
+    })
+
+    return hoursMap
+
+  }, [shiftTypes])
+
+  // ============================================================
+  // HORAS DE RESPALDO
+  // ============================================================
+
+  const getShiftHoursFallback = (
+    shiftName: string
+  ) => {
+
+    if (
+      shiftHours[shiftName] !== undefined
+    ) {
+      return shiftHours[shiftName]
+    }
+
+    const shift =
+      shiftName.toLowerCase()
+
+    if (shift === 'descanso') return 0
+
+    if (shift.includes('mañ')) return 8
+
+    if (shift.includes('tarde')) return 7
+
+    if (shift.includes('largo')) return 15
+
+    return 0
+  }
+
+  // ============================================================
+  // SEDES
+  // ============================================================
 
   const branches = Array.from(
-    new Set(records.map(r => r.branch))
+    new Set(
+      assignments.map(a => a.branch)
+    )
   )
 
-  const filteredRecords = useMemo(() => {
-    return records.filter(r => {
-      // Tomamos la fecha directamente del texto para evitar
-      // problemas de zona horaria con new Date("YYYY-MM-DD")
-      const [year, month] = r.date.slice(0, 10).split('-')
+  // ============================================================
+  // ASIGNACIONES DEL MES Y AÑO
+  // ============================================================
 
-      const monthOk =
-        Number(month) === selectedMonth
+  const assignmentsForSelectedPeriod =
+    useMemo(() => {
 
-      const yearOk =
-        Number(year) === selectedYear
+      return assignments.filter(
+        a =>
+          a.month === selectedMonth &&
+          a.year === selectedYear
+      )
 
-      const branchOk =
-        selectedBranch === 'Todas' ||
-        r.branch === selectedBranch
+    }, [
+      assignments,
+      selectedMonth,
+      selectedYear,
+    ])
 
-      return monthOk && yearOk && branchOk
-    })
-  }, [records, selectedMonth, selectedYear, selectedBranch])
+  // ============================================================
+  // REGISTROS DE ASISTENCIA DEL MES
+  // ============================================================
+
+  const filteredAttendanceRecords =
+    useMemo(() => {
+
+      return records.filter(r => {
+
+        if (!r.date) return false
+
+        const parts =
+          r.date
+            .slice(0, 10)
+            .split('-')
+
+        if (parts.length !== 3) {
+          return false
+        }
+
+        const year =
+          Number(parts[0])
+
+        const month =
+          Number(parts[1]) - 1
+
+        const monthOk =
+          month === selectedMonth
+
+        const yearOk =
+          year === selectedYear
+
+        const branchOk =
+          selectedBranch === 'Todas' ||
+          r.branch === selectedBranch
+
+        return (
+          monthOk &&
+          yearOk &&
+          branchOk
+        )
+      })
+
+    }, [
+      records,
+      selectedMonth,
+      selectedYear,
+      selectedBranch,
+    ])
+
+  // ============================================================
+  // ASIGNACIONES FILTRADAS POR SEDE
+  // ============================================================
+
+  const filteredAssignments =
+    useMemo(() => {
+
+      return assignmentsForSelectedPeriod.filter(
+        a =>
+          selectedBranch === 'Todas' ||
+          a.branch === selectedBranch
+      )
+
+    }, [
+      assignmentsForSelectedPeriod,
+      selectedBranch,
+    ])
+
+  // ============================================================
+  // RESUMEN POR EMPLEADO
+  // ============================================================
 
   const summary = useMemo(() => {
-    const map = new Map()
 
-    filteredRecords.forEach(r => {
-      if (!map.has(r.employee)) {
-        map.set(r.employee, {
-          employee: r.employee,
-          branch: r.branch,
-          days: 0,
+    const map = new Map<
+      string,
+      {
+        employee: string
+        branches: Set<string>
+        days: Set<string>
+        lateCount: number
+        lateMinutes: number
+        normalHours: number
+        extraHours: number
+        totalHours: number
+      }
+    >()
+
+    // ==========================================================
+    // 1. SUMAR HORAS DESDE LAS ASIGNACIONES
+    // ==========================================================
+
+    filteredAssignments.forEach(a => {
+
+      if (!map.has(a.employee)) {
+
+        map.set(a.employee, {
+          employee: a.employee,
+          branches: new Set<string>(),
+          days: new Set<string>(),
           lateCount: 0,
           lateMinutes: 0,
           normalHours: 0,
@@ -69,73 +281,360 @@ export default function Reports() {
         })
       }
 
-      const item = map.get(r.employee)
+      const item =
+        map.get(a.employee)!
 
-      item.days += 1
+      // Registrar sede
+      item.branches.add(a.branch)
 
-      if (r.lateMinutes > 0) {
-        item.lateCount += 1
-        item.lateMinutes += r.lateMinutes
+      // Contar días trabajados únicos
+      if (
+        a.shift.toLowerCase() !==
+        'descanso'
+      ) {
+
+        const dateKey =
+          `${a.year}-${a.month}-${a.day}`
+
+        item.days.add(dateKey)
       }
 
-      item.totalHours += r.paidHours
+      // Obtener horas del turno
+      const hours =
+        getShiftHoursFallback(
+          a.shift
+        )
+
+      // Sumar horas
+      item.totalHours += hours
     })
+
+    // ==========================================================
+    // 2. SUMAR TARDANZAS DESDE ASISTENCIA
+    // ==========================================================
+
+    filteredAttendanceRecords.forEach(r => {
+
+      const item =
+        map.get(r.employee)
+
+      if (!item) return
+
+      const lateMinutes =
+        Number(
+          r.lateMinutes || 0
+        )
+
+      if (lateMinutes > 0) {
+
+        item.lateCount += 1
+
+        item.lateMinutes +=
+          lateMinutes
+      }
+    })
+
+    // ==========================================================
+    // 3. CALCULAR HORAS NORMALES Y EXTRAS
+    // ==========================================================
 
     map.forEach(item => {
-      item.normalHours = Math.min(item.totalHours, 210)
-      item.extraHours = Math.max(item.totalHours - 210, 0)
+
+      item.normalHours =
+        Math.min(
+          item.totalHours,
+          210
+        )
+
+      item.extraHours =
+        Math.max(
+          item.totalHours - 210,
+          0
+        )
     })
 
-    return Array.from(map.values())
-  }, [filteredRecords])
+    return Array.from(
+      map.values()
+    ).map(item => ({
+
+      ...item,
+
+      days:
+        item.days.size,
+
+      branch:
+        Array.from(
+          item.branches
+        ).join(' + '),
+
+    }))
+
+  }, [
+    filteredAssignments,
+    filteredAttendanceRecords,
+    shiftHours,
+  ])
+
+  // ============================================================
+  // EXPORTAR EXCEL
+  // ============================================================
 
   const exportExcel = () => {
-    const resumen = summary.map(r => ({
-      Empleado: r.employee,
-      Sede: r.branch,
-      'Días trabajados': r.days,
-      'Llegadas tarde': r.lateCount,
-      'Minutos tarde': r.lateMinutes,
-      'Horas normales': Number(r.normalHours.toFixed(2)),
-      'Horas extra': Number(r.extraHours.toFixed(2)),
-      'Total horas': Number(r.totalHours.toFixed(2)),
-    }))
 
-    const detalle = filteredRecords.map(r => ({
-      Fecha: r.date,
-      Empleado: r.employee,
-      Sede: r.branch,
-      Programado: r.scheduledStart,
-      Real: r.realStart,
-      'Min tarde': r.lateMinutes,
-      Descuento: r.discount ? 'Sí' : 'No',
-      'Horas pagar': r.paidHours,
-    }))
+    // ==========================================================
+    // RESUMEN
+    // ==========================================================
 
-    const wb = XLSX.utils.book_new()
+    const resumen =
+      summary.map(r => ({
 
-    const wsResumen = XLSX.utils.json_to_sheet(resumen)
-    const wsDetalle = XLSX.utils.json_to_sheet(detalle)
+        Empleado:
+          r.employee,
 
-    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen')
-    XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle')
+        Sede:
+          r.branch,
+
+        'Días trabajados':
+          r.days,
+
+        'Llegadas tarde':
+          r.lateCount,
+
+        'Minutos tarde':
+          r.lateMinutes,
+
+        'Horas normales':
+          Number(
+            r.normalHours.toFixed(2)
+          ),
+
+        'Horas extra':
+          Number(
+            r.extraHours.toFixed(2)
+          ),
+
+        'Total horas':
+          Number(
+            r.totalHours.toFixed(2)
+          ),
+
+      }))
+
+    // ==========================================================
+    // DETALLE DE ASIGNACIONES
+    // ==========================================================
+
+    const detalle =
+      filteredAssignments.map(a => {
+
+        const shift =
+          shiftTypes.find(
+            s =>
+              s.name === a.shift
+          )
+
+        const hours =
+          getShiftHoursFallback(
+            a.shift
+          )
+
+        const fecha =
+          `${a.year}-${String(
+            a.month + 1
+          ).padStart(2, '0')}-${String(
+            a.day
+          ).padStart(2, '0')}`
+
+        // ======================================================
+        // BUSCAR ASISTENCIA CORRESPONDIENTE
+        // ======================================================
+
+        const attendance =
+          filteredAttendanceRecords.find(r => {
+
+            if (
+              r.employee !==
+              a.employee
+            ) {
+              return false
+            }
+
+            if (
+              r.branch !==
+              a.branch
+            ) {
+              return false
+            }
+
+            const attendanceDate =
+              r.date.slice(0, 10)
+
+            return (
+              attendanceDate ===
+              fecha
+            )
+          })
+
+        // ======================================================
+        // DETERMINAR SI LLEGÓ TARDE
+        // ======================================================
+
+        const llegada =
+          attendance &&
+          Number(
+            attendance.lateMinutes || 0
+          ) > 0
+            ? 'Llegada tarde'
+            : 'Puntual'
+
+        // ======================================================
+        // FILA DEL DETALLE
+        // ======================================================
+
+        return {
+
+          Fecha:
+            fecha,
+
+          Empleado:
+            a.employee,
+
+          Sede:
+            a.branch,
+
+          Turno:
+            a.shift,
+
+          'Hora inicio':
+            shift?.start || '',
+
+          'Hora fin':
+            shift?.end || '',
+
+          'Horas programadas':
+            Number(
+              hours.toFixed(2)
+            ),
+
+          Llegada:
+            llegada,
+
+        }
+      })
+
+    // ==========================================================
+    // LIBRO EXCEL
+    // ==========================================================
+
+    const wb =
+      XLSX.utils.book_new()
+
+    const wsResumen =
+      XLSX.utils.json_to_sheet(
+        resumen
+      )
+
+    const wsDetalle =
+      XLSX.utils.json_to_sheet(
+        detalle
+      )
+
+    // ==========================================================
+    // COLUMNAS RESUMEN
+    // ==========================================================
+
+    wsResumen['!cols'] = [
+
+      { wch: 30 },
+
+      { wch: 40 },
+
+      { wch: 18 },
+
+      { wch: 18 },
+
+      { wch: 18 },
+
+      { wch: 18 },
+
+      { wch: 16 },
+
+      { wch: 16 },
+
+    ]
+
+    // ==========================================================
+    // COLUMNAS DETALLE
+    // ==========================================================
+
+    wsDetalle['!cols'] = [
+
+      { wch: 15 },
+
+      { wch: 30 },
+
+      { wch: 20 },
+
+      { wch: 25 },
+
+      { wch: 20 },
+
+      { wch: 20 },
+
+      { wch: 20 },
+
+      { wch: 20 },
+
+    ]
+
+    // ==========================================================
+    // AGREGAR HOJAS
+    // ==========================================================
+
+    XLSX.utils.book_append_sheet(
+      wb,
+      wsResumen,
+      'Resumen'
+    )
+
+    XLSX.utils.book_append_sheet(
+      wb,
+      wsDetalle,
+      'Detalle'
+    )
+
+    // ==========================================================
+    // DESCARGAR EXCEL
+    // ==========================================================
 
     XLSX.writeFile(
       wb,
-      `Reporte_${selectedBranch}_${selectedMonth}_${selectedYear}.xlsx`
+      `Reporte_${selectedBranch}_${selectedMonth + 1}_${selectedYear}.xlsx`
     )
   }
 
+  // ============================================================
+  // INTERFAZ
+  // ============================================================
+
   return (
+
     <div className="space-y-6">
+
+      {/* ENCABEZADO */}
+
       <div className="flex items-center justify-between">
+
         <div>
+
           <h2 className="text-3xl font-bold">
             Reporte mensual
           </h2>
+
           <p className="text-slate-500">
             Resumen de asistencia y horas para nómina
           </p>
+
         </div>
 
         <button
@@ -144,92 +643,205 @@ export default function Reports() {
         >
           📥 Excel Nómina
         </button>
+
       </div>
 
+      {/* FILTROS */}
+
       <div className="bg-white rounded-2xl border p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        {/* MES */}
+
         <select
           value={selectedMonth}
           onChange={e =>
-            setSelectedMonth(Number(e.target.value))
+            setSelectedMonth(
+              Number(
+                e.target.value
+              )
+            )
           }
           className="border rounded-xl px-4 py-3"
         >
-          {Array.from({ length: 12 }, (_, i) => (
-            <option key={i + 1} value={i + 1}>
-              {new Date(2026, i, 1).toLocaleString(
-                'es-CO',
-                { month: 'long' }
-              )}
-            </option>
-          ))}
+
+          {Array.from(
+            { length: 12 },
+            (_, i) => (
+
+              <option
+                key={i}
+                value={i}
+              >
+
+                {new Date(
+                  2026,
+                  i,
+                  1
+                ).toLocaleString(
+                  'es-CO',
+                  {
+                    month: 'long',
+                  }
+                )}
+
+              </option>
+
+            )
+          )}
+
         </select>
+
+        {/* AÑO */}
 
         <input
           type="number"
           value={selectedYear}
           onChange={e =>
-            setSelectedYear(Number(e.target.value))
+            setSelectedYear(
+              Number(
+                e.target.value
+              )
+            )
           }
           className="border rounded-xl px-4 py-3"
         />
 
+        {/* SEDE */}
+
         <select
           value={selectedBranch}
           onChange={e =>
-            setSelectedBranch(e.target.value)
+            setSelectedBranch(
+              e.target.value
+            )
           }
           className="border rounded-xl px-4 py-3"
         >
-          <option>Todas</option>
-          {branches.map(branch => (
-            <option key={branch} value={branch}>
-              {branch}
-            </option>
-          ))}
+
+          <option value="Todas">
+            Todas
+          </option>
+
+          {branches.map(
+            branch => (
+
+              <option
+                key={branch}
+                value={branch}
+              >
+                {branch}
+              </option>
+
+            )
+          )}
+
         </select>
+
       </div>
 
+      {/* TABLA */}
+
       <div className="bg-white rounded-2xl border overflow-hidden">
+
         <div className="overflow-x-auto">
+
           <table className="w-full text-sm">
+
             <thead className="bg-slate-50 text-slate-600">
+
               <tr>
-                <th className="text-left p-4">Empleado</th>
-                <th className="text-left p-4">Sede</th>
-                <th className="text-left p-4">Días</th>
-                <th className="text-left p-4">Tardes</th>
-                <th className="text-left p-4">Min tarde</th>
-                <th className="text-left p-4">Normales</th>
-                <th className="text-left p-4">Extras</th>
-                <th className="text-left p-4">Pagar</th>
+
+                <th className="text-left p-4">
+                  Empleado
+                </th>
+
+                <th className="text-left p-4">
+                  Sede(s)
+                </th>
+
+                <th className="text-left p-4">
+                  Días
+                </th>
+
+                <th className="text-left p-4">
+                  Tardanzas
+                </th>
+
+                <th className="text-left p-4">
+                  Min tarde
+                </th>
+
+                <th className="text-left p-4">
+                  Normales
+                </th>
+
+                <th className="text-left p-4">
+                  Extras
+                </th>
+
+                <th className="text-left p-4">
+                  Total horas
+                </th>
+
               </tr>
+
             </thead>
 
             <tbody>
-              {summary.map(r => (
-                <tr key={r.employee} className="border-t">
-                  <td className="p-4 font-medium">
-                    {r.employee}
-                  </td>
-                  <td className="p-4">{r.branch}</td>
-                  <td className="p-4">{r.days}</td>
-                  <td className="p-4">{r.lateCount}</td>
-                  <td className="p-4">{r.lateMinutes}</td>
-                  <td className="p-4">
-                    {r.normalHours.toFixed(2)}
-                  </td>
-                  <td className="p-4">
-                    {r.extraHours.toFixed(2)}
-                  </td>
-                  <td className="p-4 font-semibold">
-                    {r.totalHours.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
+
+              {summary.map(
+                r => (
+
+                  <tr
+                    key={r.employee}
+                    className="border-t"
+                  >
+
+                    <td className="p-4 font-medium">
+                      {r.employee}
+                    </td>
+
+                    <td className="p-4">
+                      {r.branch}
+                    </td>
+
+                    <td className="p-4">
+                      {r.days}
+                    </td>
+
+                    <td className="p-4">
+                      {r.lateCount}
+                    </td>
+
+                    <td className="p-4">
+                      {r.lateMinutes}
+                    </td>
+
+                    <td className="p-4">
+                      {r.normalHours.toFixed(2)}
+                    </td>
+
+                    <td className="p-4">
+                      {r.extraHours.toFixed(2)}
+                    </td>
+
+                    <td className="p-4 font-semibold">
+                      {r.totalHours.toFixed(2)}
+                    </td>
+
+                  </tr>
+
+                )
+              )}
+
             </tbody>
+
           </table>
+
         </div>
+
       </div>
+
     </div>
   )
 }

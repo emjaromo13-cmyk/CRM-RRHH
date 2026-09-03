@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Employees from './pages/Employees'
 import ShiftTypes from './pages/ShiftTypes'
 import Calendar from './pages/Calendar'
+import DeliveryCalendar from './pages/DeliveryCalendar'
 import Attendance from './pages/Attendance'
 import Reports from './pages/Reports'
 import Dashboard from './pages/Dashboard'
@@ -11,6 +12,7 @@ export type Page =
   | 'employees'
   | 'shiftTypes'
   | 'turns'
+  | 'deliveryCalendar'
   | 'attendance'
   | 'reports'
 
@@ -38,6 +40,8 @@ export type ShiftType = {
 export type Assignment = {
   id: number
   day: number
+  month: number
+  year: number
   branch: string
   employee: string
   shift: string
@@ -49,32 +53,44 @@ export default function App() {
   // Estado para la sede seleccionada
   const [selectedBranch, setSelectedBranch] = useState<string>('PINOS')
 
-  // Empleados (Inicialización con localStorage)
+  // Empleados
   const [employees, setEmployees] = useState<Employee[]>(() => {
     const saved = localStorage.getItem('employees')
-    return saved
-      ? JSON.parse(saved)
-      : [
-          {
-            id: 1,
-            name: 'María Paula',
-            document: '1075123456',
-            role: 'Auxiliar',
-            username: 'M42',
-            status: 'Activo',
-          },
-          {
-            id: 2,
-            name: 'Juan Carlos',
-            document: '1088123456',
-            role: 'Cajero',
-            username: 'M42',
-            status: 'Activo',
-          },
-        ]
+    return saved ? JSON.parse(saved) : []
   })
 
-  // Tipos de turno (Inicialización con la estructura detallada)
+  useEffect(() => {
+    const loadEmployees = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/api/empleados')
+
+        if (!response.ok) {
+          throw new Error('No se pudieron cargar los empleados')
+        }
+
+        const data = await response.json()
+
+        if (Array.isArray(data) && data.length > 0) {
+          const formattedEmployees: Employee[] = data.map((employee: any) => ({
+            id: employee.id,
+            name: employee.nombre,
+            document: employee.documento || '',
+            role: employee.cargo || '',
+            username: employee.username || '',
+            status: employee.estado || 'Activo',
+          }))
+
+          setEmployees(formattedEmployees)
+        }
+      } catch (error) {
+        console.error('Error cargando empleados:', error)
+      }
+    }
+
+    loadEmployees()
+  }, [])
+
+  // Tipos de turno
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>(() => {
     const saved = localStorage.getItem('shiftTypes')
     return saved
@@ -196,30 +212,35 @@ export default function App() {
         ]
   })
 
-  // Asignaciones de turnos (Inicialización con localStorage)
+  // Asignaciones de turnos
   const [assignments, setAssignments] = useState<Assignment[]>(() => {
     const saved = localStorage.getItem('assignments')
-    return saved
-      ? JSON.parse(saved)
-      : [
-          {
-            id: 1,
-            day: 4,
-            branch: 'PINOS',
-            employee: 'María Paula',
-            shift: 'Mañana',
-          },
-          {
-            id: 2,
-            day: 4,
-            branch: 'PINOS',
-            employee: 'Juan Carlos',
-            shift: 'Tarde',
-          },
-        ]
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+
+        return parsed.map((assignment: any) => ({
+          ...assignment,
+          month:
+            typeof assignment.month === 'number'
+              ? assignment.month
+              : 7,
+
+          year:
+            typeof assignment.year === 'number'
+              ? assignment.year
+              : 2026,
+        }))
+      } catch (error) {
+        console.error('Error leyendo asignaciones:', error)
+      }
+    }
+
+    return []
   })
 
-  // Guardado automático en localStorage cuando cambia el estado
+  // Guardado automático en localStorage
   useEffect(() => {
     localStorage.setItem('employees', JSON.stringify(employees))
   }, [employees])
@@ -231,6 +252,74 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('assignments', JSON.stringify(assignments))
   }, [assignments])
+
+  const updateEmployees = (
+    update: React.SetStateAction<Employee[]>
+  ) => {
+    const newEmployees =
+      typeof update === 'function'
+        ? update(employees)
+        : update
+
+    // Detectar cambios de nombre
+    employees.forEach((oldEmployee) => {
+      const newEmployee = newEmployees.find(
+        (emp) => emp.id === oldEmployee.id
+      )
+
+      if (
+        newEmployee &&
+        newEmployee.name !== oldEmployee.name
+      ) {
+        const oldName = oldEmployee.name
+        const newName = newEmployee.name
+
+        // Actualizar nombres en los turnos
+        setAssignments((previousAssignments) =>
+          previousAssignments.map((assignment) =>
+            assignment.employee.trim() === oldName.trim()
+              ? {
+                  ...assignment,
+                  employee: newName,
+                }
+              : assignment
+          )
+        )
+
+        // Actualizar nombres en las asistencias
+        const savedAttendance =
+          localStorage.getItem('attendanceRecords')
+
+        if (savedAttendance) {
+          try {
+            const attendance = JSON.parse(savedAttendance)
+
+            const updatedAttendance = attendance.map(
+              (record: any) =>
+                record.employee === oldName
+                  ? {
+                      ...record,
+                      employee: newName,
+                    }
+                  : record
+            )
+
+            localStorage.setItem(
+              'attendanceRecords',
+              JSON.stringify(updatedAttendance)
+            )
+          } catch (error) {
+            console.error(
+              'Error actualizando asistencias:',
+              error
+            )
+          }
+        }
+      }
+    })
+
+    setEmployees(newEmployees)
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -269,7 +358,7 @@ export default function App() {
             💾 Crear respaldo
           </button>
 
-          {/* Botón e Input para Restaurar Respaldo con Confirmación */}
+          {/* Botón para Restaurar Respaldo */}
           <label className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition">
             📂 Restaurar respaldo
             <input
@@ -349,6 +438,12 @@ export default function App() {
           />
 
           <MenuButton
+            label="Calendario Domiciliarios"
+            active={page === 'deliveryCalendar'}
+            onClick={() => setPage('deliveryCalendar')}
+          />
+
+          <MenuButton
             label="Asistencia"
             active={page === 'attendance'}
             onClick={() => setPage('attendance')}
@@ -378,7 +473,7 @@ export default function App() {
         {page === 'employees' && (
           <Employees
             employees={employees}
-            setEmployees={setEmployees}
+            setEmployees={updateEmployees}
           />
         )}
 
@@ -400,15 +495,27 @@ export default function App() {
           />
         )}
 
-        {page === 'attendance' && (
- <Attendance
-  assignments={assignments}
-  shiftTypes={shiftTypes}
-  employees={employees}
-/>
-)}
+        {page === 'deliveryCalendar' && (
+          <DeliveryCalendar
+            employees={employees}
+            shiftTypes={shiftTypes}
+          />
+        )}
 
-        {page === 'reports' && <Reports />}
+        {page === 'attendance' && (
+          <Attendance
+            assignments={assignments}
+            shiftTypes={shiftTypes}
+            employees={employees}
+          />
+        )}
+
+        {page === 'reports' && (
+          <Reports
+            assignments={assignments}
+            shiftTypes={shiftTypes}
+          />
+        )}
       </main>
     </div>
   )

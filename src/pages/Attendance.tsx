@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx';
 type Assignment = {
   id: number;
   day: number;
+  month: number;
+  year: number;
   branch: string;
   employee: string;
   shift: string;
@@ -224,6 +226,8 @@ export default function Attendance({
     localStorage.setItem('attendanceRecords', JSON.stringify(records));
   }, [records]);
 
+  const selectedYear = Number(selectedDate.split('-')[0]);
+  const selectedMonth = Number(selectedDate.split('-')[1]) - 1;
   const todayDay = Number(selectedDate.split('-')[2]);
 
   /* =========================================================
@@ -234,17 +238,29 @@ export default function Attendance({
     return assignments.filter(a => {
       const dayOk = a.day === todayDay;
 
+      const monthOk = a.month === selectedMonth;
+
+      const yearOk = a.year === selectedYear;
+
       const branchOk =
         selectedBranch === 'Todas' || a.branch === selectedBranch;
 
       const employeeOk =
         selectedEmployee === 'Todos' || a.employee === selectedEmployee;
 
-      return dayOk && branchOk && employeeOk;
+      return (
+        dayOk &&
+        monthOk &&
+        yearOk &&
+        branchOk &&
+        employeeOk
+      );
     });
   }, [
     assignments,
     todayDay,
+    selectedMonth,
+    selectedYear,
     selectedBranch,
     selectedEmployee,
   ]);
@@ -627,12 +643,15 @@ ${keys.join(', ')}`
           ============================================== */
 
           const dateParts = first.date.split('-');
-
+          const year = Number(dateParts[0]);
+          const month = Number(dateParts[1]) - 1;
           const day = Number(dateParts[2]);
 
           const assignment = assignments.find(a => {
             return (
               a.day === day &&
+              a.month === month &&
+              a.year === year &&
               normalizeText(a.branch) ===
                 normalizeText(first.branch) &&
               normalizeText(a.employee) ===

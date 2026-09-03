@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Archivos privados y respaldos
+backend/.env
+*.env
+respaldo_*.json
+importar-datos.cjs
+importar-empleados.cjs
