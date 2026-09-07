@@ -91,6 +91,99 @@ export default function App() {
     loadEmployees()
   }, [])
 
+  // Cargar asignaciones y datos relacionados desde producción
+  useEffect(() => {
+    const loadProductionAssignments = async () => {
+      try {
+        const [
+          employeesResponse,
+          branchesResponse,
+          shiftsResponse,
+          assignmentsResponse,
+        ] = await Promise.all([
+          fetch('https://crm-rrhh-backend.onrender.com/api/empleados'),
+          fetch('https://crm-rrhh-backend.onrender.com/api/sedes'),
+          fetch('https://crm-rrhh-backend.onrender.com/api/tipos-turno'),
+          fetch('https://crm-rrhh-backend.onrender.com/api/asignaciones'),
+        ])
+
+        if (
+          !employeesResponse.ok ||
+          !branchesResponse.ok ||
+          !shiftsResponse.ok ||
+          !assignmentsResponse.ok
+        ) {
+          throw new Error(
+            'No se pudieron cargar todos los datos de producción'
+          )
+        }
+
+        const employeesData = await employeesResponse.json()
+        const branchesData = await branchesResponse.json()
+        const shiftsData = await shiftsResponse.json()
+        const assignmentsData = await assignmentsResponse.json()
+
+        console.log('EMPLEADOS PRODUCCIÓN:', employeesData)
+        console.log('SEDES PRODUCCIÓN:', branchesData)
+        console.log('TURNOS PRODUCCIÓN:', shiftsData)
+        console.log('ASIGNACIONES PRODUCCIÓN:', assignmentsData)
+
+        const employeeMap = new Map(
+          employeesData.map((employee: any) => [
+            Number(employee.id),
+            employee.nombre,
+          ])
+        )
+
+        const branchMap = new Map(
+          branchesData.map((branch: any) => [
+            Number(branch.id),
+            branch.nombre,
+          ])
+        )
+
+        const shiftMap = new Map(
+          shiftsData.map((shift: any) => [
+            Number(shift.id),
+            shift.nombre,
+          ])
+        )
+
+        const formattedAssignments: Assignment[] =
+          assignmentsData.map((assignment: any) => {
+            const date = new Date(assignment.fecha)
+
+            return {
+              id: Number(assignment.id),
+              day: date.getUTCDate(),
+              month: date.getUTCMonth() + 1,
+              year: date.getUTCFullYear(),
+              branch:
+                branchMap.get(Number(assignment.sede_id)) || '',
+              employee:
+                employeeMap.get(Number(assignment.empleado_id)) || '',
+              shift:
+                shiftMap.get(Number(assignment.turno_id)) || '',
+            }
+          })
+
+        console.log(
+          'ASIGNACIONES CONVERTIDAS:',
+          formattedAssignments
+        )
+
+        setAssignments(formattedAssignments)
+      } catch (error) {
+        console.error(
+          'Error cargando asignaciones de producción:',
+          error
+        )
+      }
+    }
+
+    loadProductionAssignments()
+  }, [])
+
   // Tipos de turno
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>(() => {
     const saved = localStorage.getItem('shiftTypes')
