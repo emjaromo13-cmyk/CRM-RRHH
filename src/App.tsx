@@ -47,9 +47,66 @@ export type Assignment = {
   shift: string
 }
 
+type Usuario = {
+  id: number
+  username: string
+  nombre: string
+  rol: string
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
-  
+
+  const [usuario, setUsuario] = useState<Usuario | null>(() => {
+    const saved = localStorage.getItem('usuario')
+    return saved ? JSON.parse(saved) : null
+  })
+
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [loadingLogin, setLoadingLogin] = useState(false)
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    setLoginError('')
+    setLoadingLogin(true)
+
+    try {
+      const response = await fetch(
+        'https://crm-rrhh-backend.onrender.com/api/login',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username,
+            password,
+          }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.mensaje || 'Error al iniciar sesión')
+      }
+
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('usuario', JSON.stringify(data.usuario))
+
+      setUsuario(data.usuario)
+      setUsername('')
+      setPassword('')
+    } catch (error: any) {
+      setLoginError(error.message || 'No se pudo iniciar sesión')
+    } finally {
+      setLoadingLogin(false)
+    }
+  }
+
   // Estado para la sede seleccionada
   const [selectedBranch, setSelectedBranch] = useState<string>('PINOS')
 
@@ -413,6 +470,73 @@ export default function App() {
     })
 
     setEmployees(newEmployees)
+  }
+
+  if (!usuario) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <form
+          onSubmit={handleLogin}
+          className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-slate-200 p-8"
+        >
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-blue-700">
+              CRM RRHH
+            </h1>
+
+            <p className="text-slate-500 mt-2">
+              Inicia sesión para continuar
+            </p>
+          </div>
+
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Usuario
+              </label>
+
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Ingresa tu usuario"
+                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Contraseña
+              </label>
+
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Ingresa tu contraseña"
+                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            {loginError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+                {loginError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loadingLogin}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-medium py-3 rounded-xl transition"
+            >
+              {loadingLogin ? 'Iniciando sesión...' : 'Iniciar sesión'}
+            </button>
+          </div>
+        </form>
+      </div>
+    )
   }
 
   return (

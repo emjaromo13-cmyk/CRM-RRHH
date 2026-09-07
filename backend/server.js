@@ -1,6 +1,8 @@
 const express = require('express')
 const cors = require('cors')
 const { Pool } = require('pg')
+const bcrypt = require('bcryptjs')
+const jwt = require('jsonwebtoken')
 require('dotenv').config()
 
 const app = express()
@@ -367,6 +369,87 @@ app.delete('/api/asignaciones/:id', async (req, res) => {
 
     res.status(500).json({
       mensaje: 'Error al eliminar asignación',
+      error: error.message,
+    })
+  }
+})
+
+// =====================================================
+// LOGIN
+// =====================================================
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body
+
+    if (!username || !password) {
+      return res.status(400).json({
+        mensaje: 'Usuario y contraseña son obligatorios',
+      })
+    }
+
+    const result = await pool.query(
+      `
+      SELECT id, username, password_hash, nombre, rol, activo
+      FROM usuarios
+      WHERE username = $1
+      `,
+      [username]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        mensaje: 'Usuario o contraseña incorrectos',
+      })
+    }
+
+    const usuario = result.rows[0]
+
+    if (!usuario.activo) {
+      return res.status(403).json({
+        mensaje: 'El usuario está inactivo',
+      })
+    }
+
+    const passwordCorrecta = await bcrypt.compare(
+      password,
+      usuario.password_hash
+    )
+
+    if (!passwordCorrecta) {
+      return res.status(401).json({
+        mensaje: 'Usuario o contraseña incorrectos',
+      })
+    }
+
+    const token = jwt.sign(
+      {
+        id: usuario.id,
+        username: usuario.username,
+        nombre: usuario.nombre,
+        rol: usuario.rol,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '8h',
+      }
+    )
+
+    res.json({
+      mensaje: 'Login correcto',
+      token,
+      usuario: {
+        id: usuario.id,
+        username: usuario.username,
+        nombre: usuario.nombre,
+        rol: usuario.rol,
+      },
+    })
+  } catch (error) {
+    console.error('Error en login:', error)
+
+    res.status(500).json({
+      mensaje: 'Error al iniciar sesión',
       error: error.message,
     })
   }
