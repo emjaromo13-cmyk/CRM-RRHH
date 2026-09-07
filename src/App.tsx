@@ -7,9 +7,6 @@ import Attendance from './pages/Attendance'
 import Reports from './pages/Reports'
 import Dashboard from './pages/Dashboard'
 
-// Backend: en local usa localhost; en Vercel define VITE_API_URL con la URL pública del backend.
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '')
-
 export type Page =
   | 'dashboard'
   | 'employees'
@@ -65,7 +62,8 @@ export default function App() {
   useEffect(() => {
     const loadEmployees = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/empleados`)
+        // Agregamos /api/empleados al final del enlace
+        const response = await fetch('https://crm-rrhh-backend.onrender.com/api/empleados')
 
         if (!response.ok) {
           throw new Error('No se pudieron cargar los empleados')
@@ -228,99 +226,22 @@ export default function App() {
           month:
             typeof assignment.month === 'number'
               ? assignment.month
-              : new Date(assignment.fecha || Date.now()).getMonth() + 1,
+              : 7,
+
           year:
             typeof assignment.year === 'number'
               ? assignment.year
-              : new Date(assignment.fecha || Date.now()).getFullYear(),
+              : 2026,
         }))
       } catch (error) {
-        console.error('Error leyendo asignaciones locales:', error)
+        console.error('Error leyendo asignaciones:', error)
       }
     }
 
     return []
   })
 
-  // Cargar asignaciones reales desde Neon al abrir la aplicación.
-  // localStorage queda solamente como respaldo visual si el backend no responde.
-  useEffect(() => {
-    const loadAssignments = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/asignaciones`)
-
-        if (!response.ok) {
-          throw new Error(`Error HTTP ${response.status}`)
-        }
-
-        const data = await response.json()
-        const rows = Array.isArray(data)
-          ? data
-          : Array.isArray(data.asignaciones)
-            ? data.asignaciones
-            : []
-
-        const formattedAssignments: Assignment[] = rows.map((assignment: any) => {
-          const date = assignment.fecha ? new Date(assignment.fecha) : null
-
-          const month =
-            typeof assignment.month === 'number'
-              ? assignment.month
-              : date && !Number.isNaN(date.getTime())
-                ? date.getUTCMonth() + 1
-                : 1
-
-          const year =
-            typeof assignment.year === 'number'
-              ? assignment.year
-              : date && !Number.isNaN(date.getTime())
-                ? date.getUTCFullYear()
-                : new Date().getFullYear()
-
-          return {
-            id: Number(assignment.id),
-            day:
-              typeof assignment.day === 'number'
-                ? assignment.day
-                : date && !Number.isNaN(date.getTime())
-                  ? date.getUTCDate()
-                  : 1,
-            month,
-            year,
-            branch:
-              assignment.branch ||
-              assignment.sede ||
-              assignment.sede_nombre ||
-              assignment.nombre_sede ||
-              '',
-            employee:
-              assignment.employee ||
-              assignment.empleado ||
-              assignment.empleado_nombre ||
-              assignment.nombre_empleado ||
-              '',
-            shift:
-              assignment.shift ||
-              assignment.turno ||
-              assignment.turno_nombre ||
-              assignment.tipo_turno ||
-              '',
-          }
-        })
-
-        setAssignments(formattedAssignments)
-        localStorage.setItem('assignments', JSON.stringify(formattedAssignments))
-        console.log(`✅ ${formattedAssignments.length} asignaciones cargadas desde Neon`)
-      } catch (error) {
-        console.error('Error cargando asignaciones desde Neon:', error)
-        // No borramos lo que ya estaba cargado desde localStorage.
-      }
-    }
-
-    loadAssignments()
-  }, [])
-
-  // Guardado local de respaldo. La fuente principal de datos es Neon.
+  // Guardado automático en localStorage
   useEffect(() => {
     localStorage.setItem('employees', JSON.stringify(employees))
   }, [employees])
