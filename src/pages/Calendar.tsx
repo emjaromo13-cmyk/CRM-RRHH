@@ -15,11 +15,7 @@ type Assignment = {
 type Props = {
   assignments: Assignment[];
   setAssignments: React.Dispatch<React.SetStateAction<Assignment[]>>;
-  employees: {
-    id: number;
-    name: string;
-    username: string;
-  }[];
+  employees: { id: number; name: string; username: string }[];
   shiftTypes: {
     id: number;
     name: string;
@@ -32,6 +28,8 @@ type Props = {
   }[];
   selectedBranch: string;
   setSelectedBranch: React.Dispatch<React.SetStateAction<string>>;
+  allowedBranches?: string[];
+  readOnly?: boolean;
 };
 
 export default function Calendar({
@@ -41,6 +39,8 @@ export default function Calendar({
   shiftTypes,
   selectedBranch,
   setSelectedBranch,
+  allowedBranches,
+  readOnly = false,
 }: Props) {
   const branches = [
     'PINOS',
@@ -56,6 +56,17 @@ export default function Calendar({
     'ZULUAGA',
     'IPANEMA',
   ];
+
+  // =========================================================
+  // SEDES VISIBLES SEGÚN EL USUARIO
+  // =========================================================
+
+  const visibleBranches =
+    allowedBranches && allowedBranches.length > 0
+      ? branches.filter((branch) =>
+          allowedBranches.includes(branch)
+        )
+      : branches;
 
   const months = [
     'Enero',
@@ -74,8 +85,13 @@ export default function Calendar({
 
   const today = new Date();
 
-  const [selectedMonth, setSelectedMonth] = useState(today.getMonth());
-  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(
+    today.getMonth()
+  );
+
+  const [selectedYear, setSelectedYear] = useState(
+    today.getFullYear()
+  );
 
   const years = Array.from(
     { length: 5 },
@@ -83,10 +99,32 @@ export default function Calendar({
   );
 
   // =========================================================
+  // ASEGURAR QUE LA SEDE SELECCIONADA SEA PERMITIDA
+  // =========================================================
+
+  useEffect(() => {
+    if (
+      allowedBranches &&
+      allowedBranches.length > 0 &&
+      !allowedBranches.includes(selectedBranch)
+    ) {
+      setSelectedBranch(allowedBranches[0]);
+    }
+  }, [
+    allowedBranches,
+    selectedBranch,
+    setSelectedBranch,
+  ]);
+
+  // =========================================================
   // DATOS DEL MES SELECCIONADO
   // =========================================================
 
-  const firstDay = new Date(selectedYear, selectedMonth, 1);
+  const firstDay = new Date(
+    selectedYear,
+    selectedMonth,
+    1
+  );
 
   const daysInMonth = new Date(
     selectedYear,
@@ -94,11 +132,13 @@ export default function Calendar({
     0
   ).getDate();
 
-  const startDay = (firstDay.getDay() + 6) % 7;
+  const startDay =
+    (firstDay.getDay() + 6) % 7;
 
-  // IMPORTANTE:
-  // Aquí filtramos por sede + mes + año.
-  // Así agosto nunca se mezcla con septiembre.
+  // =========================================================
+  // ASIGNACIONES DE LA SEDE ACTUAL
+  // =========================================================
+
   const branchAssignments = assignments.filter(
     (a) =>
       a.branch === selectedBranch &&
@@ -112,50 +152,73 @@ export default function Calendar({
 
   const [showForm, setShowForm] = useState(false);
   const [quickDay, setQuickDay] = useState(1);
-  const [quickEmployee, setQuickEmployee] = useState('');
-  const [quickShift, setQuickShift] = useState('');
+  const [quickEmployee, setQuickEmployee] =
+    useState('');
+  const [quickShift, setQuickShift] =
+    useState('');
 
   const [editingAssignment, setEditingAssignment] =
     useState<Assignment | null>(null);
 
-  const [editingEmployee, setEditingEmployee] = useState('');
-  const [editingShift, setEditingShift] = useState('');
+  const [editingEmployee, setEditingEmployee] =
+    useState('');
+
+  const [editingShift, setEditingShift] =
+    useState('');
 
   const [editMode, setEditMode] = useState<
     'single' | 'toEnd' | 'range'
   >('single');
 
-  const [rangeStart, setRangeStart] = useState(1);
-  const [rangeEnd, setRangeEnd] = useState(1);
+  const [rangeStart, setRangeStart] =
+    useState(1);
 
-  const [showPdfMenu, setShowPdfMenu] = useState(false);
-  const [showExcelMenu, setShowExcelMenu] = useState(false);
+  const [rangeEnd, setRangeEnd] =
+    useState(1);
 
-  const pdfMenuRef = useRef<HTMLDivElement>(null);
-  const excelMenuRef = useRef<HTMLDivElement>(null);
+  const [showPdfMenu, setShowPdfMenu] =
+    useState(false);
+
+  const [showExcelMenu, setShowExcelMenu] =
+    useState(false);
+
+  const pdfMenuRef =
+    useRef<HTMLDivElement>(null);
+
+  const excelMenuRef =
+    useRef<HTMLDivElement>(null);
 
   // =========================================================
   // CERRAR MENÚS AL HACER CLICK AFUERA
   // =========================================================
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (
+      event: MouseEvent
+    ) => {
       if (
         pdfMenuRef.current &&
-        !pdfMenuRef.current.contains(event.target as Node)
+        !pdfMenuRef.current.contains(
+          event.target as Node
+        )
       ) {
         setShowPdfMenu(false);
       }
 
       if (
         excelMenuRef.current &&
-        !excelMenuRef.current.contains(event.target as Node)
+        !excelMenuRef.current.contains(
+          event.target as Node
+        )
       ) {
         setShowExcelMenu(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener(
+      'mousedown',
+      handleClickOutside
+    );
 
     return () => {
       document.removeEventListener(
@@ -169,18 +232,23 @@ export default function Calendar({
   // ASIGNACIÓN MASIVA
   // =========================================================
 
-  const [bulkAssignment, setBulkAssignment] = useState({
-    employee: employees[0]?.name || '',
-    shift: shiftTypes[0]?.name || '',
-    startDay: 1,
-    endDay: 1,
-  });
+  const [bulkAssignment, setBulkAssignment] =
+    useState({
+      employee:
+        employees[0]?.name || '',
+      shift:
+        shiftTypes[0]?.name || '',
+      startDay: 1,
+      endDay: 1,
+    });
 
   // =========================================================
   // INFORMACIÓN DEL TURNO
   // =========================================================
 
-  const getShiftInfo = (shift: string) => {
+  const getShiftInfo = (
+    shift: string
+  ) => {
     const s = shift.toLowerCase();
 
     const turno = shiftTypes.find(
@@ -189,24 +257,33 @@ export default function Calendar({
 
     if (s.includes('desc')) {
       return {
-        bg: 'bg-green-100 border border-green-200',
-        text: 'text-green-800',
-        hours: turno?.hours || '',
+        bg:
+          'bg-green-100 border border-green-200',
+        text:
+          'text-green-800',
+        hours:
+          turno?.hours || '',
       };
     }
 
     if (s.includes('largo')) {
       return {
-        bg: 'bg-gray-200 border border-gray-300',
-        text: 'text-gray-800',
-        hours: turno?.hours || '',
+        bg:
+          'bg-gray-200 border border-gray-300',
+        text:
+          'text-gray-800',
+        hours:
+          turno?.hours || '',
       };
     }
 
     return {
-      bg: 'bg-red-100 border border-red-200',
-      text: 'text-red-800',
-      hours: turno?.hours || '',
+      bg:
+        'bg-red-100 border border-red-200',
+      text:
+        'text-red-800',
+      hours:
+        turno?.hours || '',
     };
   };
 
@@ -214,12 +291,18 @@ export default function Calendar({
   // OBTENER HORARIO DE UN TURNO
   // =========================================================
 
-  const getShiftSchedule = (shiftName: string) => {
+  const getShiftSchedule = (
+    shiftName: string
+  ) => {
     const turno = shiftTypes.find(
-      (t) => t.name === shiftName
+      (t) =>
+        t.name === shiftName
     );
 
-    if (!turno?.start || !turno?.end) {
+    if (
+      !turno?.start ||
+      !turno?.end
+    ) {
       return '-';
     }
 
@@ -239,19 +322,24 @@ export default function Calendar({
   // =========================================================
 
   const createQuickAssignment = () => {
-    if (!quickEmployee || !quickShift) {
+    if (readOnly) return;
+
+    if (
+      !quickEmployee ||
+      !quickShift
+    ) {
       return;
     }
 
-    // Evitar duplicados
-    const alreadyExists = assignments.some(
-      (a) =>
-        a.day === quickDay &&
-        a.month === selectedMonth &&
-        a.year === selectedYear &&
-        a.branch === selectedBranch &&
-        a.employee === quickEmployee
-    );
+    const alreadyExists =
+      assignments.some(
+        (a) =>
+          a.day === quickDay &&
+          a.month === selectedMonth &&
+          a.year === selectedYear &&
+          a.branch === selectedBranch &&
+          a.employee === quickEmployee
+      );
 
     if (alreadyExists) {
       alert(
@@ -261,7 +349,9 @@ export default function Calendar({
     }
 
     const newAssignment: Assignment = {
-      id: Date.now() + Math.random(),
+      id:
+        Date.now() +
+        Math.random(),
       day: quickDay,
       month: selectedMonth,
       year: selectedYear,
@@ -285,6 +375,8 @@ export default function Calendar({
   // =========================================================
 
   const createBulkAssignment = () => {
+    if (readOnly) return;
+
     if (
       !bulkAssignment.employee ||
       !bulkAssignment.shift
@@ -294,45 +386,65 @@ export default function Calendar({
 
     if (
       bulkAssignment.startDay < 1 ||
-      bulkAssignment.endDay > daysInMonth ||
-      bulkAssignment.startDay > bulkAssignment.endDay
+      bulkAssignment.endDay >
+        daysInMonth ||
+      bulkAssignment.startDay >
+        bulkAssignment.endDay
     ) {
-      alert('El rango de días no es válido.');
+      alert(
+        'El rango de días no es válido.'
+      );
       return;
     }
 
-    const newAssignments: Assignment[] = [];
+    const newAssignments: Assignment[] =
+      [];
 
     for (
-      let day = bulkAssignment.startDay;
-      day <= bulkAssignment.endDay;
+      let day =
+        bulkAssignment.startDay;
+      day <=
+      bulkAssignment.endDay;
       day++
     ) {
-      // Buscar si ya existe ese empleado en ese día,
-      // pero SOLO dentro del mes, año y sede actuales.
-      const alreadyExists = assignments.some(
-        (a) =>
-          a.day === day &&
-          a.month === selectedMonth &&
-          a.year === selectedYear &&
-          a.branch === selectedBranch &&
-          a.employee === bulkAssignment.employee
-      );
+      const alreadyExists =
+        assignments.some(
+          (a) =>
+            a.day === day &&
+            a.month ===
+              selectedMonth &&
+            a.year ===
+              selectedYear &&
+            a.branch ===
+              selectedBranch &&
+            a.employee ===
+              bulkAssignment.employee
+        );
 
       if (!alreadyExists) {
         newAssignments.push({
-          id: Date.now() + day + Math.random(),
+          id:
+            Date.now() +
+            day +
+            Math.random(),
           day,
-          month: selectedMonth,
-          year: selectedYear,
-          branch: selectedBranch,
-          employee: bulkAssignment.employee,
-          shift: bulkAssignment.shift,
+          month:
+            selectedMonth,
+          year:
+            selectedYear,
+          branch:
+            selectedBranch,
+          employee:
+            bulkAssignment.employee,
+          shift:
+            bulkAssignment.shift,
         });
       }
     }
 
-    if (newAssignments.length === 0) {
+    if (
+      newAssignments.length === 0
+    ) {
       alert(
         'El empleado ya tiene turnos asignados en todos los días seleccionados.'
       );
@@ -352,7 +464,8 @@ export default function Calendar({
   const exportPDF = () => {
     try {
       const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation:
+          'landscape',
         unit: 'mm',
         format: 'a4',
       });
@@ -360,9 +473,18 @@ export default function Calendar({
       const pageWidth =
         pdf.internal.pageSize.getWidth();
 
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFont(
+        'helvetica',
+        'bold'
+      );
+
       pdf.setFontSize(20);
-      pdf.setTextColor(185, 28, 28);
+
+      pdf.setTextColor(
+        185,
+        28,
+        28
+      );
 
       pdf.text(
         `Sede: ${selectedBranch}`,
@@ -373,9 +495,18 @@ export default function Calendar({
         }
       );
 
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFont(
+        'helvetica',
+        'normal'
+      );
+
       pdf.setFontSize(11);
-      pdf.setTextColor(100, 116, 139);
+
+      pdf.setTextColor(
+        100,
+        116,
+        139
+      );
 
       pdf.text(
         `${months[selectedMonth]} ${selectedYear}`,
@@ -401,38 +532,61 @@ export default function Calendar({
       const cellW = 40;
       const minCellH = 22;
 
-      weekDays.forEach((d, i) => {
-        const x = startX + i * cellW;
+      weekDays.forEach(
+        (d, i) => {
+          const x =
+            startX +
+            i * cellW;
 
-        pdf.setFillColor(185, 28, 28);
-        pdf.rect(
-          x,
-          startY,
-          cellW,
-          8,
-          'F'
-        );
+          pdf.setFillColor(
+            185,
+            28,
+            28
+          );
 
-        pdf.setTextColor(255, 255, 255);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(8);
+          pdf.rect(
+            x,
+            startY,
+            cellW,
+            8,
+            'F'
+          );
 
-        pdf.text(
-          d,
-          x + cellW / 2,
-          startY + 5,
-          {
-            align: 'center',
-          }
-        );
-      });
+          pdf.setTextColor(
+            255,
+            255,
+            255
+          );
+
+          pdf.setFont(
+            'helvetica',
+            'bold'
+          );
+
+          pdf.setFontSize(8);
+
+          pdf.text(
+            d,
+            x +
+              cellW / 2,
+            startY + 5,
+            {
+              align:
+                'center',
+            }
+          );
+        }
+      );
 
       let x =
-        startX + startDay * cellW;
+        startX +
+        startDay * cellW;
 
-      let y = startY + 8;
+      let y =
+        startY + 8;
 
-      let currentRowHeight = minCellH;
+      let currentRowHeight =
+        minCellH;
 
       for (
         let day = 1;
@@ -441,14 +595,16 @@ export default function Calendar({
       ) {
         const dayAssignments =
           branchAssignments.filter(
-            (a) => a.day === day
+            (a) =>
+              a.day === day
           );
 
         const neededHeight =
           Math.max(
             minCellH,
             12 +
-              dayAssignments.length * 12
+              dayAssignments.length *
+                12
           );
 
         currentRowHeight =
@@ -489,7 +645,8 @@ export default function Calendar({
           y + 4
         );
 
-        let lineY = y + 8;
+        let lineY =
+          y + 8;
 
         dayAssignments.forEach(
           (a) => {
@@ -497,7 +654,9 @@ export default function Calendar({
               a.shift.toLowerCase();
 
             if (
-              shiftLower.includes('desc')
+              shiftLower.includes(
+                'desc'
+              )
             ) {
               pdf.setFillColor(
                 220,
@@ -511,7 +670,9 @@ export default function Calendar({
                 52
               );
             } else if (
-              shiftLower.includes('largo')
+              shiftLower.includes(
+                'largo'
+              )
             ) {
               pdf.setFillColor(
                 229,
@@ -553,14 +714,19 @@ export default function Calendar({
               'bold'
             );
 
-            pdf.setFontSize(5.8);
+            pdf.setFontSize(
+              5.8
+            );
 
             const shortName =
               a.employee
                 .split(' ')
                 .slice(0, 2)
                 .join(' ')
-                .substring(0, 18);
+                .substring(
+                  0,
+                  18
+                );
 
             pdf.text(
               shortName,
@@ -573,7 +739,9 @@ export default function Calendar({
               'normal'
             );
 
-            pdf.setFontSize(4.8);
+            pdf.setFontSize(
+              4.8
+            );
 
             pdf.text(
               a.shift,
@@ -582,7 +750,9 @@ export default function Calendar({
             );
 
             pdf.text(
-              getShiftSchedule(a.shift),
+              getShiftSchedule(
+                a.shift
+              ),
               x + 3,
               lineY + 4.5
             );
@@ -604,7 +774,8 @@ export default function Calendar({
             minCellH;
 
           if (
-            y + currentRowHeight >
+            y +
+              currentRowHeight >
               185 &&
             day < daysInMonth
           ) {
@@ -673,6 +844,7 @@ export default function Calendar({
       );
     } catch (error) {
       console.error(error);
+
       alert(
         'Error al exportar PDF'
       );
@@ -694,7 +866,8 @@ export default function Calendar({
           const turno =
             shiftTypes.find(
               (t) =>
-                t.name === a.shift
+                t.name ===
+                a.shift
             );
 
           if (turno) {
@@ -731,7 +904,8 @@ export default function Calendar({
                 eh * 60 + em;
 
               if (
-                endMin < startMin
+                endMin <
+                startMin
               ) {
                 endMin +=
                   24 * 60;
@@ -854,6 +1028,8 @@ export default function Calendar({
   const openEditModal = (
     assignment: Assignment
   ) => {
+    if (readOnly) return;
+
     setEditingAssignment(
       assignment
     );
@@ -883,6 +1059,8 @@ export default function Calendar({
 
   const saveEditedAssignment =
     () => {
+      if (readOnly) return;
+
       if (!editingAssignment) {
         return;
       }
@@ -893,7 +1071,6 @@ export default function Calendar({
       setAssignments(
         assignments.map(
           (item) => {
-            // SOLO ESTE DÍA
             if (
               editMode ===
                 'single' &&
@@ -909,7 +1086,6 @@ export default function Calendar({
               };
             }
 
-            // HASTA FIN DE MES
             if (
               editMode ===
                 'toEnd' &&
@@ -933,7 +1109,6 @@ export default function Calendar({
               };
             }
 
-            // RANGO
             if (
               editMode ===
                 'range' &&
@@ -975,6 +1150,8 @@ export default function Calendar({
 
   const deleteAssignment =
     () => {
+      if (readOnly) return;
+
       if (!editingAssignment) {
         return;
       }
@@ -1003,7 +1180,8 @@ export default function Calendar({
     const consolidado: any[] =
       [];
 
-    branches.forEach(
+    // SOLO SEDES PERMITIDAS
+    visibleBranches.forEach(
       (branch) => {
         const bAssignments =
           assignments.filter(
@@ -1241,7 +1419,8 @@ export default function Calendar({
   const exportAllPDF = () => {
     try {
       const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation:
+          'landscape',
         unit: 'mm',
         format: 'a4',
       });
@@ -1263,8 +1442,12 @@ export default function Calendar({
       const cellW = 40;
       const minCellH = 22;
 
-      branches.forEach(
-        (branch, branchIndex) => {
+      // SOLO SEDES PERMITIDAS
+      visibleBranches.forEach(
+        (
+          branch,
+          branchIndex
+        ) => {
           if (
             branchIndex > 0
           ) {
@@ -1693,13 +1876,17 @@ export default function Calendar({
         'a4'
       );
 
+      // SOLO SEDES VISIBLES/PERMITIDAS
       const currentAssignments =
         assignments.filter(
           (a) =>
             a.month ===
               selectedMonth &&
             a.year ===
-              selectedYear
+              selectedYear &&
+            visibleBranches.includes(
+              a.branch
+            )
         );
 
       const empleadosSedes =
@@ -1772,7 +1959,10 @@ export default function Calendar({
       let firstPage = true;
 
       porEmpleado.forEach(
-        (turnos, empleado) => {
+        (
+          turnos,
+          empleado
+        ) => {
           if (!firstPage) {
             pdf.addPage();
           }
@@ -2007,6 +2197,12 @@ export default function Calendar({
             {months[selectedMonth]}{' '}
             {selectedYear}
           </p>
+
+          {readOnly && (
+            <p className="text-sm text-amber-600 font-medium mt-1">
+              👁️ Modo solo lectura
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -2022,7 +2218,7 @@ export default function Calendar({
             }
             className="border rounded-xl px-4 py-2 bg-white"
           >
-            {branches.map(
+            {visibleBranches.map(
               (branch) => (
                 <option
                   key={branch}
@@ -2116,6 +2312,7 @@ export default function Calendar({
                 <button
                   onClick={() => {
                     exportPDF();
+
                     setShowPdfMenu(
                       false
                     );
@@ -2128,6 +2325,7 @@ export default function Calendar({
                 <button
                   onClick={() => {
                     exportAllPDF();
+
                     setShowPdfMenu(
                       false
                     );
@@ -2140,6 +2338,7 @@ export default function Calendar({
                 <button
                   onClick={() => {
                     exportCoveragePDF();
+
                     setShowPdfMenu(
                       false
                     );
@@ -2219,143 +2418,28 @@ export default function Calendar({
           ASIGNACIÓN MASIVA
       ===================================================== */}
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-4">
+      {!readOnly && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-4">
 
-        <h3 className="text-lg font-semibold mb-4 text-slate-800">
-          Asignación masiva
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-
-          <select
-            value={
-              bulkAssignment.employee
-            }
-            onChange={(e) =>
-              setBulkAssignment({
-                ...bulkAssignment,
-                employee:
-                  e.target.value,
-              })
-            }
-            className="px-4 py-3 rounded-xl border border-slate-300 bg-white"
-          >
-            {employees.map(
-              (employee) => (
-                <option
-                  key={employee.id}
-                  value={
-                    employee.name
-                  }
-                >
-                  {employee.name}
-                </option>
-              )
-            )}
-          </select>
-
-          <select
-            value={
-              bulkAssignment.shift
-            }
-            onChange={(e) =>
-              setBulkAssignment({
-                ...bulkAssignment,
-                shift:
-                  e.target.value,
-              })
-            }
-            className="px-4 py-3 rounded-xl border border-slate-300 bg-white"
-          >
-            {shiftTypes.map(
-              (shift) => (
-                <option
-                  key={shift.id}
-                  value={shift.name}
-                >
-                  {shift.name}
-                </option>
-              )
-            )}
-          </select>
-
-          <input
-            type="number"
-            min={1}
-            max={daysInMonth}
-            value={
-              bulkAssignment.startDay
-            }
-            onChange={(e) =>
-              setBulkAssignment({
-                ...bulkAssignment,
-                startDay: Number(
-                  e.target.value
-                ),
-              })
-            }
-            className="px-4 py-3 rounded-xl border border-slate-300"
-            placeholder="Desde"
-          />
-
-          <input
-            type="number"
-            min={1}
-            max={daysInMonth}
-            value={
-              bulkAssignment.endDay
-            }
-            onChange={(e) =>
-              setBulkAssignment({
-                ...bulkAssignment,
-                endDay: Number(
-                  e.target.value
-                ),
-              })
-            }
-            className="px-4 py-3 rounded-xl border border-slate-300"
-            placeholder="Hasta"
-          />
-
-          <button
-            onClick={
-              createBulkAssignment
-            }
-            className="bg-blue-600 text-white px-5 py-3 rounded-xl font-medium hover:bg-blue-700 transition"
-          >
-            Asignar rango
-          </button>
-
-        </div>
-      </div>
-
-      {/* =====================================================
-          FORMULARIO RÁPIDO
-      ===================================================== */}
-
-      {showForm && (
-        <div className="bg-white rounded-2xl border p-4 space-y-3">
-
-          <h3 className="font-bold text-lg">
-            Nuevo turno - Día{' '}
-            {quickDay}
+          <h3 className="text-lg font-semibold mb-4 text-slate-800">
+            Asignación masiva
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
 
             <select
-              value={quickEmployee}
-              onChange={(e) =>
-                setQuickEmployee(
-                  e.target.value
-                )
+              value={
+                bulkAssignment.employee
               }
-              className="border rounded-xl px-4 py-3 bg-white"
+              onChange={(e) =>
+                setBulkAssignment({
+                  ...bulkAssignment,
+                  employee:
+                    e.target.value,
+                })
+              }
+              className="px-4 py-3 rounded-xl border border-slate-300 bg-white"
             >
-              <option value="">
-                Empleado
-              </option>
-
               {employees.map(
                 (employee) => (
                   <option
@@ -2371,23 +2455,25 @@ export default function Calendar({
             </select>
 
             <select
-              value={quickShift}
-              onChange={(e) =>
-                setQuickShift(
-                  e.target.value
-                )
+              value={
+                bulkAssignment.shift
               }
-              className="border rounded-xl px-4 py-3 bg-white"
+              onChange={(e) =>
+                setBulkAssignment({
+                  ...bulkAssignment,
+                  shift:
+                    e.target.value,
+                })
+              }
+              className="px-4 py-3 rounded-xl border border-slate-300 bg-white"
             >
-              <option value="">
-                Turno
-              </option>
-
               {shiftTypes.map(
                 (shift) => (
                   <option
                     key={shift.id}
-                    value={shift.name}
+                    value={
+                      shift.name
+                    }
                   >
                     {shift.name}
                   </option>
@@ -2395,13 +2481,53 @@ export default function Calendar({
               )}
             </select>
 
+            <input
+              type="number"
+              min={1}
+              max={daysInMonth}
+              value={
+                bulkAssignment.startDay
+              }
+              onChange={(e) =>
+                setBulkAssignment({
+                  ...bulkAssignment,
+                  startDay:
+                    Number(
+                      e.target.value
+                    ),
+                })
+              }
+              className="px-4 py-3 rounded-xl border border-slate-300"
+              placeholder="Desde"
+            />
+
+            <input
+              type="number"
+              min={1}
+              max={daysInMonth}
+              value={
+                bulkAssignment.endDay
+              }
+              onChange={(e) =>
+                setBulkAssignment({
+                  ...bulkAssignment,
+                  endDay:
+                    Number(
+                      e.target.value
+                    ),
+                })
+              }
+              className="px-4 py-3 rounded-xl border border-slate-300"
+              placeholder="Hasta"
+            />
+
             <button
               onClick={
-                createQuickAssignment
+                createBulkAssignment
               }
-              className="bg-red-600 hover:bg-red-700 text-white rounded-xl px-5 py-3 font-medium"
+              className="bg-blue-600 text-white px-5 py-3 rounded-xl font-medium hover:bg-blue-700 transition"
             >
-              Guardar
+              Asignar rango
             </button>
 
           </div>
@@ -2409,343 +2535,456 @@ export default function Calendar({
       )}
 
       {/* =====================================================
-          MODAL EDITAR
+          FORMULARIO RÁPIDO
       ===================================================== */}
 
-      {editingAssignment && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      {!readOnly &&
+        showForm && (
+          <div className="bg-white rounded-2xl border p-4 space-y-3">
 
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5">
+            <h3 className="font-bold text-lg">
+              Nuevo turno - Día{' '}
+              {quickDay}
+            </h3>
 
-            <div className="flex items-center justify-between">
-
-              <div>
-                <h3 className="text-2xl font-bold text-slate-800">
-                  Editar turno
-                </h3>
-
-                <p className="text-slate-500 text-sm">
-                  Modifica empleado,
-                  turno o aplica
-                  cambios masivos
-                </p>
-              </div>
-
-              <button
-                onClick={() =>
-                  setEditingAssignment(
-                    null
-                  )
-                }
-                className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500"
-              >
-                ✕
-              </button>
-
-            </div>
-
-            {/* INFORMACIÓN */}
-
-            <div className="bg-slate-50 rounded-2xl p-4 border space-y-3">
-
-              <div className="flex items-center gap-3">
-
-                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-                  📅
-                </div>
-
-                <div>
-
-                  <p className="text-xs text-slate-500">
-                    Fecha
-                  </p>
-
-                  <p className="font-semibold text-slate-800">
-                    {editingAssignment.day}{' '}
-                    {months[
-                      selectedMonth
-                    ]}{' '}
-                    {selectedYear}
-                  </p>
-
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  🏢
-                </div>
-
-                <div>
-
-                  <p className="text-xs text-slate-500">
-                    Sede
-                  </p>
-
-                  <p className="font-semibold text-slate-800">
-                    {
-                      editingAssignment.branch
-                    }
-                  </p>
-
-                </div>
-              </div>
-
-            </div>
-
-            {/* EMPLEADO */}
-
-            <div className="space-y-2">
-
-              <label className="text-sm font-semibold text-slate-700">
-                Empleado
-              </label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 
               <select
                 value={
-                  editingEmployee
+                  quickEmployee
                 }
                 onChange={(e) =>
-                  setEditingEmployee(
+                  setQuickEmployee(
                     e.target.value
                   )
                 }
-                className="w-full border border-slate-300 rounded-2xl px-4 py-3 bg-white"
+                className="border rounded-xl px-4 py-3 bg-white"
               >
+                <option value="">
+                  Empleado
+                </option>
+
                 {employees.map(
                   (employee) => (
                     <option
-                      key={employee.id}
+                      key={
+                        employee.id
+                      }
                       value={
                         employee.name
                       }
                     >
-                      {employee.name}
+                      {
+                        employee.name
+                      }
                     </option>
                   )
                 )}
               </select>
 
-            </div>
-
-            {/* TURNO */}
-
-            <div className="space-y-2">
-
-              <label className="text-sm font-semibold text-slate-700">
-                Tipo de turno
-              </label>
-
               <select
-                value={editingShift}
+                value={
+                  quickShift
+                }
                 onChange={(e) =>
-                  setEditingShift(
+                  setQuickShift(
                     e.target.value
                   )
                 }
-                className="w-full border border-slate-300 rounded-2xl px-4 py-3 bg-white"
+                className="border rounded-xl px-4 py-3 bg-white"
               >
+                <option value="">
+                  Turno
+                </option>
+
                 {shiftTypes.map(
                   (shift) => (
                     <option
-                      key={shift.id}
-                      value={shift.name}
+                      key={
+                        shift.id
+                      }
+                      value={
+                        shift.name
+                      }
                     >
-                      {shift.name}
+                      {
+                        shift.name
+                      }
                     </option>
                   )
                 )}
               </select>
 
+              <button
+                onClick={
+                  createQuickAssignment
+                }
+                className="bg-red-600 hover:bg-red-700 text-white rounded-xl px-5 py-3 font-medium"
+              >
+                Guardar
+              </button>
+
             </div>
+          </div>
+        )}
 
-            {/* APLICAR CAMBIOS */}
+      {/* =====================================================
+          MODAL EDITAR
+      ===================================================== */}
 
-            <div className="space-y-3">
+      {editingAssignment &&
+        !readOnly && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
 
-              <label className="text-sm font-semibold text-slate-700">
-                Aplicar cambios
-              </label>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5">
 
-              <div className="grid grid-cols-1 gap-3">
+              <div className="flex items-center justify-between">
 
-                <button
-                  onClick={() =>
-                    setEditMode(
-                      'single'
-                    )
-                  }
-                  className={`p-3 rounded-2xl border text-left transition ${
-                    editMode ===
-                    'single'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="font-medium">
-                    Solo este día
-                  </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-800">
+                    Editar turno
+                  </h3>
 
-                  <div className="text-xs text-slate-500">
-                    Cambia únicamente
-                    este turno
-                  </div>
-                </button>
+                  <p className="text-slate-500 text-sm">
+                    Modifica empleado,
+                    turno o aplica
+                    cambios masivos
+                  </p>
+                </div>
 
                 <button
                   onClick={() =>
-                    setEditMode(
-                      'toEnd'
+                    setEditingAssignment(
+                      null
                     )
                   }
-                  className={`p-3 rounded-2xl border text-left transition ${
-                    editMode ===
-                    'toEnd'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-slate-200 hover:bg-slate-50'
-                  }`}
+                  className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500"
                 >
-                  <div className="font-medium">
-                    Hasta fin de mes
-                  </div>
-
-                  <div className="text-xs text-slate-500">
-                    Cambia este
-                    empleado desde
-                    el día actual
-                    hasta el final
-                    del mes
-                  </div>
-                </button>
-
-                <button
-                  onClick={() =>
-                    setEditMode(
-                      'range'
-                    )
-                  }
-                  className={`p-3 rounded-2xl border text-left transition ${
-                    editMode ===
-                    'range'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="font-medium">
-                    Rango personalizado
-                  </div>
-
-                  <div className="text-xs text-slate-500">
-                    Elige desde qué
-                    día hasta qué
-                    día aplicar
-                  </div>
+                  ✕
                 </button>
 
               </div>
 
-              {editMode ===
-                'range' && (
-                <div className="grid grid-cols-2 gap-3 pt-2">
+              {/* INFORMACIÓN */}
 
-                  <div>
+              <div className="bg-slate-50 rounded-2xl p-4 border space-y-3">
 
-                    <label className="text-xs text-slate-500">
-                      Desde
-                    </label>
+                <div className="flex items-center gap-3">
 
-                    <input
-                      type="number"
-                      min={1}
-                      max={
-                        daysInMonth
-                      }
-                      value={
-                        rangeStart
-                      }
-                      onChange={(e) =>
-                        setRangeStart(
-                          Number(
-                            e.target.value
-                          )
-                        )
-                      }
-                      className="w-full mt-1 border border-slate-300 rounded-xl px-3 py-2"
-                    />
-
+                  <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                    📅
                   </div>
 
                   <div>
 
-                    <label className="text-xs text-slate-500">
-                      Hasta
-                    </label>
+                    <p className="text-xs text-slate-500">
+                      Fecha
+                    </p>
 
-                    <input
-                      type="number"
-                      min={1}
-                      max={
-                        daysInMonth
+                    <p className="font-semibold text-slate-800">
+                      {
+                        editingAssignment.day
+                      }{' '}
+                      {
+                        months[
+                          selectedMonth
+                        ]
+                      }{' '}
+                      {
+                        selectedYear
                       }
-                      value={
-                        rangeEnd
-                      }
-                      onChange={(e) =>
-                        setRangeEnd(
-                          Number(
-                            e.target.value
-                          )
-                        )
-                      }
-                      className="w-full mt-1 border border-slate-300 rounded-xl px-3 py-2"
-                    />
+                    </p>
 
                   </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                    🏢
+                  </div>
+
+                  <div>
+
+                    <p className="text-xs text-slate-500">
+                      Sede
+                    </p>
+
+                    <p className="font-semibold text-slate-800">
+                      {
+                        editingAssignment.branch
+                      }
+                    </p>
+
+                  </div>
+                </div>
+
+              </div>
+
+              {/* EMPLEADO */}
+
+              <div className="space-y-2">
+
+                <label className="text-sm font-semibold text-slate-700">
+                  Empleado
+                </label>
+
+                <select
+                  value={
+                    editingEmployee
+                  }
+                  onChange={(e) =>
+                    setEditingEmployee(
+                      e.target.value
+                    )
+                  }
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 bg-white"
+                >
+                  {employees.map(
+                    (employee) => (
+                      <option
+                        key={
+                          employee.id
+                        }
+                        value={
+                          employee.name
+                        }
+                      >
+                        {
+                          employee.name
+                        }
+                      </option>
+                    )
+                  )}
+                </select>
+
+              </div>
+
+              {/* TURNO */}
+
+              <div className="space-y-2">
+
+                <label className="text-sm font-semibold text-slate-700">
+                  Tipo de turno
+                </label>
+
+                <select
+                  value={
+                    editingShift
+                  }
+                  onChange={(e) =>
+                    setEditingShift(
+                      e.target.value
+                    )
+                  }
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3 bg-white"
+                >
+                  {shiftTypes.map(
+                    (shift) => (
+                      <option
+                        key={
+                          shift.id
+                        }
+                        value={
+                          shift.name
+                        }
+                      >
+                        {
+                          shift.name
+                        }
+                      </option>
+                    )
+                  )}
+                </select>
+
+              </div>
+
+              {/* APLICAR CAMBIOS */}
+
+              <div className="space-y-3">
+
+                <label className="text-sm font-semibold text-slate-700">
+                  Aplicar cambios
+                </label>
+
+                <div className="grid grid-cols-1 gap-3">
+
+                  <button
+                    onClick={() =>
+                      setEditMode(
+                        'single'
+                      )
+                    }
+                    className={`p-3 rounded-2xl border text-left transition ${
+                      editMode ===
+                      'single'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="font-medium">
+                      Solo este día
+                    </div>
+
+                    <div className="text-xs text-slate-500">
+                      Cambia únicamente
+                      este turno
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      setEditMode(
+                        'toEnd'
+                      )
+                    }
+                    className={`p-3 rounded-2xl border text-left transition ${
+                      editMode ===
+                      'toEnd'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="font-medium">
+                      Hasta fin de mes
+                    </div>
+
+                    <div className="text-xs text-slate-500">
+                      Cambia este
+                      empleado desde
+                      el día actual
+                      hasta el final
+                      del mes
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      setEditMode(
+                        'range'
+                      )
+                    }
+                    className={`p-3 rounded-2xl border text-left transition ${
+                      editMode ===
+                      'range'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="font-medium">
+                      Rango personalizado
+                    </div>
+
+                    <div className="text-xs text-slate-500">
+                      Elige desde qué
+                      día hasta qué
+                      día aplicar
+                    </div>
+                  </button>
 
                 </div>
-              )}
+
+                {editMode ===
+                  'range' && (
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+
+                    <div>
+
+                      <label className="text-xs text-slate-500">
+                        Desde
+                      </label>
+
+                      <input
+                        type="number"
+                        min={1}
+                        max={
+                          daysInMonth
+                        }
+                        value={
+                          rangeStart
+                        }
+                        onChange={(e) =>
+                          setRangeStart(
+                            Number(
+                              e.target.value
+                            )
+                          )
+                        }
+                        className="w-full mt-1 border border-slate-300 rounded-xl px-3 py-2"
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="text-xs text-slate-500">
+                        Hasta
+                      </label>
+
+                      <input
+                        type="number"
+                        min={1}
+                        max={
+                          daysInMonth
+                        }
+                        value={
+                          rangeEnd
+                        }
+                        onChange={(e) =>
+                          setRangeEnd(
+                            Number(
+                              e.target.value
+                            )
+                          )
+                        }
+                        className="w-full mt-1 border border-slate-300 rounded-xl px-3 py-2"
+                      />
+
+                    </div>
+
+                  </div>
+                )}
+
+              </div>
+
+              {/* BOTONES */}
+
+              <div className="flex gap-3 pt-2">
+
+                <button
+                  onClick={
+                    deleteAssignment
+                  }
+                  className="px-4 py-3 rounded-2xl bg-red-50 hover:bg-red-100 text-red-600 font-medium transition"
+                >
+                  🗑️
+                </button>
+
+                <button
+                  onClick={() =>
+                    setEditingAssignment(
+                      null
+                    )
+                  }
+                  className="flex-1 py-3 rounded-2xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  onClick={
+                    saveEditedAssignment
+                  }
+                  className="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition"
+                >
+                  💾 Guardar
+                </button>
+
+              </div>
 
             </div>
-
-            {/* BOTONES */}
-
-            <div className="flex gap-3 pt-2">
-
-              <button
-                onClick={
-                  deleteAssignment
-                }
-                className="px-4 py-3 rounded-2xl bg-red-50 hover:bg-red-100 text-red-600 font-medium transition"
-              >
-                🗑️
-              </button>
-
-              <button
-                onClick={() =>
-                  setEditingAssignment(
-                    null
-                  )
-                }
-                className="flex-1 py-3 rounded-2xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition"
-              >
-                Cancelar
-              </button>
-
-              <button
-                onClick={
-                  saveEditedAssignment
-                }
-                className="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition"
-              >
-                💾 Guardar
-              </button>
-
-            </div>
-
           </div>
-        </div>
-      )}
+        )}
 
       {/* =====================================================
           CALENDARIO
@@ -2800,9 +3039,6 @@ export default function Calendar({
               const day =
                 index + 1;
 
-              // MUY IMPORTANTE:
-              // Solo mostramos asignaciones
-              // del mes y año seleccionados.
               const dayAssignments =
                 branchAssignments.filter(
                   (a) =>
@@ -2827,28 +3063,34 @@ export default function Calendar({
                         {day}
                       </span>
 
-                      <button
-                        onClick={() => {
-                          setQuickDay(
-                            day
-                          );
+                      {/* BOTÓN + SOLO PARA USUARIOS CON PERMISO */}
 
-                          setShowForm(
-                            true
-                          );
-                        }}
-                        className="text-xs w-5 h-5 rounded-full bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-700 flex items-center justify-center transition"
-                        title="Agregar turno"
-                      >
-                        +
-                      </button>
+                      {!readOnly && (
+                        <button
+                          onClick={() => {
+                            setQuickDay(
+                              day
+                            );
+
+                            setShowForm(
+                              true
+                            );
+                          }}
+                          className="text-xs w-5 h-5 rounded-full bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-700 flex items-center justify-center transition"
+                          title="Agregar turno"
+                        >
+                          +
+                        </button>
+                      )}
 
                     </div>
 
                     <div className="space-y-1">
 
                       {dayAssignments.map(
-                        (assignment) => {
+                        (
+                          assignment
+                        ) => {
                           const info =
                             getShiftInfo(
                               assignment.shift
@@ -2859,12 +3101,20 @@ export default function Calendar({
                               key={
                                 assignment.id
                               }
-                              onClick={() =>
-                                openEditModal(
-                                  assignment
-                                )
-                              }
-                              className={`p-1.5 rounded-lg border text-xs cursor-pointer transition hover:opacity-80 ${info.bg}`}
+                              onClick={() => {
+                                if (
+                                  !readOnly
+                                ) {
+                                  openEditModal(
+                                    assignment
+                                  );
+                                }
+                              }}
+                              className={`p-1.5 rounded-lg border text-xs ${
+                                readOnly
+                                  ? 'cursor-default'
+                                  : 'cursor-pointer hover:opacity-80'
+                              } transition ${info.bg}`}
                             >
 
                               <p

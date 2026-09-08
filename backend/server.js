@@ -26,6 +26,99 @@ app.use(cors())
 app.use(express.json())
 
 // =====================================================
+// AUTENTICACIÓN JWT
+// =====================================================
+
+function verificarToken(req, res, next) {
+  const authHeader = req.headers.authorization
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      mensaje: 'Token no proporcionado',
+    })
+  }
+
+  const token = authHeader.split(' ')[1]
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+
+    req.usuario = decoded
+
+    next()
+  } catch (error) {
+    return res.status(401).json({
+      mensaje: 'Token inválido o expirado',
+    })
+  }
+}
+
+// =====================================================
+// AUTORIZACIÓN POR ROL
+// =====================================================
+
+function permitirRoles(...rolesPermitidos) {
+  return (req, res, next) => {
+    if (!req.usuario) {
+      return res.status(401).json({
+        mensaje: 'No autenticado',
+      })
+    }
+
+    if (!rolesPermitidos.includes(req.usuario.rol)) {
+      return res.status(403).json({
+        mensaje: 'No tienes permisos para realizar esta acción',
+      })
+    }
+
+    next()
+  }
+}
+
+// =====================================================
+// AUTORIZACIÓN POR SEDE
+// =====================================================
+
+const sedesPorRol = {
+  LIDER_ZONA_1: [1, 2, 3, 4, 5],
+  LIDER_ZONA_2: [6, 7, 8, 9, 10],
+  LIDER_GIGANTE: [11],
+  LIDER_ZULUAGA: [12],
+}
+
+function verificarSede(req, res, next) {
+  // ADMIN puede trabajar con cualquier sede
+  if (req.usuario.rol === 'ADMIN') {
+    return next()
+  }
+
+  // JEFE no puede modificar
+  if (req.usuario.rol === 'JEFE') {
+    return res.status(403).json({
+      mensaje: 'El rol JEFE solo tiene permisos de visualización',
+    })
+  }
+
+  const sedesPermitidas = sedesPorRol[req.usuario.rol]
+
+  if (!sedesPermitidas) {
+    return res.status(403).json({
+      mensaje: 'Rol sin sedes asignadas',
+    })
+  }
+
+  const sedeId = Number(req.body.sede_id)
+
+  if (!sedesPermitidas.includes(sedeId)) {
+    return res.status(403).json({
+      mensaje: 'No tienes permisos para modificar esta sede',
+    })
+  }
+
+  next()
+}
+
+// =====================================================
 // RUTA PRINCIPAL
 // =====================================================
 
@@ -63,316 +156,558 @@ app.get('/api/test-db', async (req, res) => {
 // OBTENER EMPLEADOS
 // =====================================================
 
-app.get('/api/empleados', async (req, res) => {
-  try {
-    console.log('🔎 Ejecutando /api/empleados')
+app.get(
+  '/api/empleados',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'JEFE',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          id,
+          nombre,
+          documento,
+          cargo,
+          sede_id,
+          username,
+          estado
+        FROM empleados
+        ORDER BY id
+      `)
 
-    const result = await pool.query(`
-      SELECT
-        id,
-        nombre,
-        documento,
-        cargo,
-        sede_id,
-        username,
-        estado
-      FROM empleados
-      ORDER BY id
-    `)
+      res.json(result.rows)
+    } catch (error) {
+      console.error('Error obteniendo empleados:', error)
 
-    res.json(result.rows)
-  } catch (error) {
-    console.error('Error al obtener empleados:', error)
-
-    res.status(500).json({
-      mensaje: 'Error al obtener empleados',
-      error: error.message,
-    })
+      res.status(500).json({
+        mensaje: 'Error obteniendo empleados',
+        error: error.message,
+      })
+    }
   }
-})
+)
 
 // =====================================================
 // CREAR EMPLEADO
 // =====================================================
 
-app.post('/api/empleados', async (req, res) => {
-  try {
-    const {
-      nombre,
-      documento,
-      cargo,
-      username,
-      estado,
-    } = req.body
-
-    const result = await pool.query(
-      `
-      INSERT INTO empleados
-        (nombre, documento, cargo, username, estado)
-      VALUES
-        ($1, $2, $3, $4, $5)
-      RETURNING
-        id,
+app.post(
+  '/api/empleados',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const {
         nombre,
         documento,
         cargo,
         username,
-        estado
-      `,
-      [
-        nombre,
-        documento,
-        cargo,
-        username,
-        estado || 'Activo',
-      ]
-    )
+        estado,
+      } = req.body
 
-    res.status(201).json(result.rows[0])
-  } catch (error) {
-    console.error('Error al crear empleado:', error)
+      const result = await pool.query(
+        `
+        INSERT INTO empleados
+          (nombre, documento, cargo, username, estado)
+        VALUES
+          ($1, $2, $3, $4, $5)
+        RETURNING
+          id,
+          nombre,
+          documento,
+          cargo,
+          username,
+          estado
+        `,
+        [
+          nombre,
+          documento,
+          cargo,
+          username,
+          estado || 'Activo',
+        ]
+      )
 
-    res.status(500).json({
-      mensaje: 'Error al crear empleado',
-      error: error.message,
-    })
+      res.status(201).json(result.rows[0])
+    } catch (error) {
+      console.error('Error al crear empleado:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al crear empleado',
+        error: error.message,
+      })
+    }
   }
-})
+)
 
 // =====================================================
 // OBTENER TIPOS DE TURNO
 // =====================================================
 
-app.get('/api/tipos-turno', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT
-        id,
-        nombre,
-        hora_inicio,
-        hora_fin
-      FROM tipos_turno
-      ORDER BY id
-    `)
+app.get(
+  '/api/tipos-turno',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'JEFE',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          id,
+          nombre,
+          hora_inicio,
+          hora_fin
+        FROM tipos_turno
+        ORDER BY id
+      `)
 
-    res.json(result.rows)
-  } catch (error) {
-    console.error('Error al obtener tipos de turno:', error)
+      res.json(result.rows)
+    } catch (error) {
+      console.error('Error al obtener tipos de turno:', error)
 
-    res.status(500).json({
-      mensaje: 'Error al obtener tipos de turno',
-      error: error.message,
-    })
+      res.status(500).json({
+        mensaje: 'Error al obtener tipos de turno',
+        error: error.message,
+      })
+    }
   }
-})
+)
 
 // =====================================================
 // OBTENER ASIGNACIONES
 // =====================================================
 
-app.get('/api/asignaciones', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT *
-      FROM asignaciones
-      ORDER BY id
-    `)
+app.get(
+  '/api/asignaciones',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'JEFE',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      let query = `
+        SELECT *
+        FROM asignaciones
+      `
 
-    res.json(result.rows)
-  } catch (error) {
-    console.error('Error al obtener asignaciones:', error)
+      let params = []
 
-    res.status(500).json({
-      mensaje: 'Error al obtener asignaciones',
-      error: error.message,
-    })
+      // ADMIN y JEFE pueden visualizar todas las asignaciones
+      if (
+        req.usuario.rol !== 'ADMIN' &&
+        req.usuario.rol !== 'JEFE'
+      ) {
+        const sedesPermitidas = sedesPorRol[req.usuario.rol]
+
+        if (!sedesPermitidas) {
+          return res.status(403).json({
+            mensaje: 'Rol sin sedes asignadas',
+          })
+        }
+
+        query += `
+          WHERE sede_id = ANY($1::int[])
+        `
+
+        params = [sedesPermitidas]
+      }
+
+      query += `
+        ORDER BY id
+      `
+
+      const result = await pool.query(query, params)
+
+      res.json(result.rows)
+    } catch (error) {
+      console.error('Error al obtener asignaciones:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al obtener asignaciones',
+        error: error.message,
+      })
+    }
   }
-})
+)
 
 // =====================================================
-// OBTENER ASISTENCIAS
+// OBTENER ASISTENCIAS (FILTRADAS POR SEDE)
 // =====================================================
 
-app.get('/api/asistencias', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT *
-      FROM asistencias
-      ORDER BY id
-    `)
+app.get(
+  '/api/asistencias',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'JEFE',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      let query = `
+        SELECT *
+        FROM asistencias
+      `
 
-    res.json(result.rows)
-  } catch (error) {
-    console.error('Error al obtener asistencias:', error)
+      const params = []
 
-    res.status(500).json({
-      mensaje: 'Error al obtener asistencias',
-      error: error.message,
-    })
+      // ADMIN y JEFE pueden visualizar todas las asistencias
+      if (
+        req.usuario.rol !== 'ADMIN' &&
+        req.usuario.rol !== 'JEFE'
+      ) {
+        const sedesPermitidas = sedesPorRol[req.usuario.rol]
+
+        if (!sedesPermitidas) {
+          return res.status(403).json({
+            mensaje: 'Rol sin sedes asignadas',
+          })
+        }
+
+        query += `
+          WHERE sede_id = ANY($1::int[])
+        `
+
+        params.push(sedesPermitidas)
+      }
+
+      query += `
+        ORDER BY id
+      `
+
+      const result = await pool.query(query, params)
+
+      res.json(result.rows)
+    } catch (error) {
+      console.error('Error al obtener asistencias:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al obtener asistencias',
+        error: error.message,
+      })
+    }
   }
-})
+)
 
 // =====================================================
-// OBTENER SEDES
+// OBTENER SEDES (FILTRADAS POR LÍDER)
 // =====================================================
 
-app.get('/api/sedes', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT *
-      FROM sedes
-      ORDER BY id
-    `)
+app.get(
+  '/api/sedes',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'JEFE',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      let query = `
+        SELECT id, nombre, zona, lider, activo
+        FROM sedes
+      `
 
-    res.json(result.rows)
-  } catch (error) {
-    console.error('Error al obtener sedes:', error)
+      const params = []
 
-    res.status(500).json({
-      mensaje: 'Error al obtener sedes',
-      error: error.message,
-    })
+      if (
+        req.usuario.rol !== 'ADMIN' &&
+        req.usuario.rol !== 'JEFE'
+      ) {
+        const sedesPermitidas = sedesPorRol[req.usuario.rol]
+
+        query += ` WHERE id = ANY($1::int[])`
+        params.push(sedesPermitidas)
+      }
+
+      query += ` ORDER BY id`
+
+      const result = await pool.query(query, params)
+
+      res.json(result.rows)
+    } catch (error) {
+      console.error('Error obteniendo sedes:', error)
+      res.status(500).json({
+        mensaje: 'Error obteniendo sedes',
+        error: error.message,
+      })
+    }
   }
-})
+)
 
 // =====================================================
 // CREAR ASIGNACIÓN
 // =====================================================
 
-app.post('/api/asignaciones', async (req, res) => {
-  try {
-    const {
-      empleado_id,
-      sede_id,
-      fecha,
-      turno_id,
-    } = req.body
-
-    const result = await pool.query(
-      `
-      INSERT INTO asignaciones
-        (empleado_id, sede_id, fecha, turno_id)
-      VALUES
-        ($1, $2, $3, $4)
-      RETURNING
-        id,
-        empleado_id,
-        sede_id,
-        fecha,
-        turno_id
-      `,
-      [
+app.post(
+  '/api/asignaciones',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  verificarSede,
+  async (req, res) => {
+    try {
+      const {
         empleado_id,
         sede_id,
         fecha,
         turno_id,
-      ]
-    )
+      } = req.body
 
-    res.status(201).json(result.rows[0])
-  } catch (error) {
-    console.error('Error al crear asignación:', error)
+      const result = await pool.query(
+        `
+        INSERT INTO asignaciones
+          (empleado_id, sede_id, fecha, turno_id)
+        VALUES
+          ($1, $2, $3, $4)
+        RETURNING
+          id,
+          empleado_id,
+          sede_id,
+          fecha,
+          turno_id
+        `,
+        [
+          empleado_id,
+          sede_id,
+          fecha,
+          turno_id,
+        ]
+      )
 
-    res.status(500).json({
-      mensaje: 'Error al crear asignación',
-      error: error.message,
-    })
+      res.status(201).json(result.rows[0])
+    } catch (error) {
+      console.error('Error al crear asignación:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al crear asignación',
+        error: error.message,
+      })
+    }
   }
-})
+)
 
 // =====================================================
 // EDITAR ASIGNACIÓN
 // =====================================================
 
-app.put('/api/asignaciones/:id', async (req, res) => {
-  try {
-    const { id } = req.params
+app.put(
+  '/api/asignaciones/:id',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      const { id } = req.params
 
-    const {
-      empleado_id,
-      sede_id,
-      fecha,
-      turno_id,
-    } = req.body
-
-    const result = await pool.query(
-      `
-      UPDATE asignaciones
-      SET
-        empleado_id = $1,
-        sede_id = $2,
-        fecha = $3,
-        turno_id = $4
-      WHERE id = $5
-      RETURNING
-        id,
-        empleado_id,
-        sede_id,
-        fecha,
-        turno_id
-      `,
-      [
+      const {
         empleado_id,
         sede_id,
         fecha,
         turno_id,
-        id,
-      ]
-    )
+      } = req.body
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        mensaje: 'Asignación no encontrada',
+      // ADMIN puede modificar cualquier asignación
+      if (req.usuario.rol !== 'ADMIN') {
+        // Buscar la asignación actual
+        const asignacionActual = await pool.query(
+          `
+          SELECT sede_id
+          FROM asignaciones
+          WHERE id = $1
+          `,
+          [id]
+        )
+
+        if (asignacionActual.rows.length === 0) {
+          return res.status(404).json({
+            mensaje: 'Asignación no encontrada',
+          })
+        }
+
+        const sedeActual = Number(
+          asignacionActual.rows[0].sede_id
+        )
+
+        const sedesPermitidas = sedesPorRol[req.usuario.rol]
+
+        if (
+          !sedesPermitidas ||
+          !sedesPermitidas.includes(sedeActual)
+        ) {
+          return res.status(403).json({
+            mensaje: 'No tienes permisos para modificar esta sede',
+          })
+        }
+
+        // También verificamos la nueva sede
+        const nuevaSede = Number(sede_id)
+
+        if (!sedesPermitidas.includes(nuevaSede)) {
+          return res.status(403).json({
+            mensaje: 'No tienes permisos para mover la asignación a esta sede',
+          })
+        }
+      }
+
+      const result = await pool.query(
+        `
+        UPDATE asignaciones
+        SET
+          empleado_id = $1,
+          sede_id = $2,
+          fecha = $3,
+          turno_id = $4
+        WHERE id = $5
+        RETURNING
+          id,
+          empleado_id,
+          sede_id,
+          fecha,
+          turno_id
+        `,
+        [
+          empleado_id,
+          sede_id,
+          fecha,
+          turno_id,
+          id,
+        ]
+      )
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Asignación no encontrada',
+        })
+      }
+
+      res.json(result.rows[0])
+    } catch (error) {
+      console.error('Error al editar asignación:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al editar asignación',
+        error: error.message,
       })
     }
-
-    res.json(result.rows[0])
-  } catch (error) {
-    console.error('Error al editar asignación:', error)
-
-    res.status(500).json({
-      mensaje: 'Error al editar asignación',
-      error: error.message,
-    })
   }
-})
+)
 
 // =====================================================
 // ELIMINAR ASIGNACIÓN
 // =====================================================
 
-app.delete('/api/asignaciones/:id', async (req, res) => {
-  try {
-    const { id } = req.params
+app.delete(
+  '/api/asignaciones/:id',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      const { id } = req.params
 
-    const result = await pool.query(
-      `
-      DELETE FROM asignaciones
-      WHERE id = $1
-      RETURNING id
-      `,
-      [id]
-    )
+      // ADMIN puede eliminar cualquier asignación
+      if (req.usuario.rol !== 'ADMIN') {
+        // Buscar primero la sede de la asignación
+        const asignacion = await pool.query(
+          `
+          SELECT sede_id
+          FROM asignaciones
+          WHERE id = $1
+          `,
+          [id]
+        )
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        mensaje: 'Asignación no encontrada',
+        if (asignacion.rows.length === 0) {
+          return res.status(404).json({
+            mensaje: 'Asignación no encontrada',
+          })
+        }
+
+        const sedeId = Number(
+          asignacion.rows[0].sede_id
+        )
+
+        const sedesPermitidas = sedesPorRol[req.usuario.rol]
+
+        if (
+          !sedesPermitidas ||
+          !sedesPermitidas.includes(sedeId)
+        ) {
+          return res.status(403).json({
+            mensaje: 'No tienes permisos para eliminar esta asignación',
+          })
+        }
+      }
+
+      const result = await pool.query(
+        `
+        DELETE FROM asignaciones
+        WHERE id = $1
+        RETURNING id
+        `,
+        [id]
+      )
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Asignación no encontrada',
+        })
+      }
+
+      res.json({
+        mensaje: 'Asignación eliminada correctamente',
+        id: result.rows[0].id,
+      })
+    } catch (error) {
+      console.error('Error al eliminar asignación:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al eliminar asignación',
+        error: error.message,
       })
     }
-
-    res.json({
-      mensaje: 'Asignación eliminada correctamente',
-      id: result.rows[0].id,
-    })
-  } catch (error) {
-    console.error('Error al eliminar asignación:', error)
-
-    res.status(500).json({
-      mensaje: 'Error al eliminar asignación',
-      error: error.message,
-    })
   }
-})
+)
 
 // =====================================================
 // LOGIN

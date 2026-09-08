@@ -54,11 +54,103 @@ type Usuario = {
   rol: string
 }
 
+/*
+=========================================================
+USUARIOS DEL SISTEMA
+=========================================================
+*/
+
+const usuariosLogin = [
+  {
+    username: 'admin',
+    nombre: 'Administrador',
+    etiqueta: 'Administrador',
+  },
+  {
+    username: 'yilver',
+    nombre: 'Yilver Medina',
+    etiqueta: 'Líder Zona 1',
+  },
+  {
+    username: 'jhon',
+    nombre: 'Jhon Flor',
+    etiqueta: 'Líder Zona 2',
+  },
+  {
+    username: 'sergio',
+    nombre: 'Sergio',
+    etiqueta: 'Líder Gigante',
+  },
+  {
+    username: 'jhoan',
+    nombre: 'Jhoan Sosa',
+    etiqueta: 'Líder Zuluaga',
+  },
+  {
+    username: 'jefe',
+    nombre: 'Jefe',
+    etiqueta: 'Jefe',
+  },
+]
+
+/*
+=========================================================
+SEDES PERMITIDAS POR USUARIO
+=========================================================
+*/
+
+const branchesByRole: Record<string, string[]> = {
+  LIDER_ZONA_1: [
+    'PINOS',
+    'CAÑA BRAVA',
+    'GUALANDAY',
+    'BUGANVILES',
+    'RIVERA',
+  ],
+
+  LIDER_ZONA_2: [
+    'LIMONAR',
+    'BAMBU',
+    'MANZANARES',
+    'MIRA RIO',
+    'IPANEMA',
+  ],
+
+  LIDER_GIGANTE: [
+    'GIGANTE',
+  ],
+
+  LIDER_ZULUAGA: [
+    'ZULUAGA',
+  ],
+}
+
+/*
+=========================================================
+FUNCIÓN PARA OBTENER LAS SEDES PERMITIDAS
+=========================================================
+*/
+
+function getAllowedBranches(rol: string): string[] | undefined {
+  if (rol === 'ADMIN' || rol === 'JEFE') {
+    return undefined
+  }
+
+  return branchesByRole[rol] || []
+}
+
+/*
+=========================================================
+APP
+=========================================================
+*/
+
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
 
   const [usuario, setUsuario] = useState<Usuario | null>(() => {
     const saved = localStorage.getItem('usuario')
+
     return saved ? JSON.parse(saved) : null
   })
 
@@ -67,20 +159,33 @@ export default function App() {
   const [loginError, setLoginError] = useState('')
   const [loadingLogin, setLoadingLogin] = useState(false)
 
+  /*
+  ========================================================
+  LOGIN
+  ========================================================
+  */
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
 
     setLoginError('')
     setLoadingLogin(true)
 
+    console.log('LOGIN FRONTEND:', {
+      username,
+      passwordLength: password.length,
+    })
+
     try {
       const response = await fetch(
         'https://crm-rrhh-backend.onrender.com/api/login',
         {
           method: 'POST',
+
           headers: {
             'Content-Type': 'application/json',
           },
+
           body: JSON.stringify({
             username,
             password,
@@ -91,318 +196,589 @@ export default function App() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.mensaje || 'Error al iniciar sesión')
+        throw new Error(
+          data.mensaje || 'Error al iniciar sesión'
+        )
       }
 
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('usuario', JSON.stringify(data.usuario))
+      localStorage.setItem(
+        'token',
+        data.token
+      )
+
+      localStorage.setItem(
+        'usuario',
+        JSON.stringify(data.usuario)
+      )
 
       setUsuario(data.usuario)
+
       setUsername('')
       setPassword('')
+
+      /*
+      Al iniciar sesión dejamos la página
+      de turnos como punto de entrada para
+      los líderes.
+      */
+      setPage('turns')
+
     } catch (error: any) {
-      setLoginError(error.message || 'No se pudo iniciar sesión')
+      setLoginError(
+        error.message ||
+          'No se pudo iniciar sesión'
+      )
     } finally {
       setLoadingLogin(false)
     }
   }
 
-  // Estado para la sede seleccionada
-  const [selectedBranch, setSelectedBranch] = useState<string>('PINOS')
+  /*
+  ========================================================
+  LOGOUT
+  ========================================================
+  */
 
-  // Empleados
-  const [employees, setEmployees] = useState<Employee[]>(() => {
-    const saved = localStorage.getItem('employees')
-    return saved ? JSON.parse(saved) : []
-  })
+  const handleLogout = () => {
+    localStorage.removeItem('usuario')
+    localStorage.removeItem('token')
+
+    setUsuario(null)
+
+    setUsername('')
+    setPassword('')
+    setLoginError('')
+
+    setPage('dashboard')
+  }
+
+  /*
+  ========================================================
+  SEDE SELECCIONADA
+  ========================================================
+  */
+
+  const [selectedBranch, setSelectedBranch] =
+    useState<string>('PINOS')
+
+  /*
+  ========================================================
+  EMPLEADOS
+  ========================================================
+  */
+
+  const [employees, setEmployees] =
+    useState<Employee[]>(() => {
+      const saved =
+        localStorage.getItem('employees')
+
+      return saved
+        ? JSON.parse(saved)
+        : []
+    })
 
   useEffect(() => {
     const loadEmployees = async () => {
       try {
-        // Agregamos /api/empleados al final del enlace
-        const response = await fetch('https://crm-rrhh-backend.onrender.com/api/empleados')
+        const token =
+          localStorage.getItem('token')
+
+        const response = await fetch(
+          'https://crm-rrhh-backend.onrender.com/api/empleados',
+          {
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        )
 
         if (!response.ok) {
-          throw new Error('No se pudieron cargar los empleados')
-        }
-
-        const data = await response.json()
-
-        if (Array.isArray(data) && data.length > 0) {
-          const formattedEmployees: Employee[] = data.map((employee: any) => ({
-            id: employee.id,
-            name: employee.nombre,
-            document: employee.documento || '',
-            role: employee.cargo || '',
-            username: employee.username || '',
-            status: employee.estado || 'Activo',
-          }))
-
-          setEmployees(formattedEmployees)
-        }
-      } catch (error) {
-        console.error('Error cargando empleados:', error)
-      }
-    }
-
-    loadEmployees()
-  }, [])
-
-  // Cargar asignaciones y datos relacionados desde producción
-  useEffect(() => {
-    const loadProductionAssignments = async () => {
-      try {
-        const [
-          employeesResponse,
-          branchesResponse,
-          shiftsResponse,
-          assignmentsResponse,
-        ] = await Promise.all([
-          fetch('https://crm-rrhh-backend.onrender.com/api/empleados'),
-          fetch('https://crm-rrhh-backend.onrender.com/api/sedes'),
-          fetch('https://crm-rrhh-backend.onrender.com/api/tipos-turno'),
-          fetch('https://crm-rrhh-backend.onrender.com/api/asignaciones'),
-        ])
-
-        if (
-          !employeesResponse.ok ||
-          !branchesResponse.ok ||
-          !shiftsResponse.ok ||
-          !assignmentsResponse.ok
-        ) {
           throw new Error(
-            'No se pudieron cargar todos los datos de producción'
+            'No se pudieron cargar los empleados'
           )
         }
 
-        const employeesData = await employeesResponse.json()
-        const branchesData = await branchesResponse.json()
-        const shiftsData = await shiftsResponse.json()
-        const assignmentsData = await assignmentsResponse.json()
+        const data =
+          await response.json()
 
-        console.log('EMPLEADOS PRODUCCIÓN:', employeesData)
-        console.log('SEDES PRODUCCIÓN:', branchesData)
-        console.log('TURNOS PRODUCCIÓN:', shiftsData)
-        console.log('ASIGNACIONES PRODUCCIÓN:', assignmentsData)
+        if (
+          Array.isArray(data) &&
+          data.length > 0
+        ) {
+          const formattedEmployees: Employee[] =
+            data.map(
+              (employee: any) => ({
+                id: employee.id,
 
-        const employeeMap = new Map(
-          employeesData.map((employee: any) => [
-            Number(employee.id),
-            employee.nombre,
-          ])
-        )
+                name:
+                  employee.nombre,
 
-        const branchMap = new Map(
-          branchesData.map((branch: any) => [
-            Number(branch.id),
-            branch.nombre,
-          ])
-        )
+                document:
+                  employee.documento ||
+                  '',
 
-        const shiftMap = new Map(
-          shiftsData.map((shift: any) => [
-            Number(shift.id),
-            shift.nombre,
-          ])
-        )
+                role:
+                  employee.cargo ||
+                  '',
 
-        const formattedAssignments: Assignment[] =
-          assignmentsData.map((assignment: any) => {
-            const date = new Date(assignment.fecha)
+                username:
+                  employee.username ||
+                  '',
 
-            return {
-              id: Number(assignment.id),
-              day: date.getUTCDate(),
-              month: date.getUTCMonth() + 1,
-              year: date.getUTCFullYear(),
-              branch:
-                branchMap.get(Number(assignment.sede_id)) || '',
-              employee:
-                employeeMap.get(Number(assignment.empleado_id)) || '',
-              shift:
-                shiftMap.get(Number(assignment.turno_id)) || '',
-            }
-          })
+                status:
+                  employee.estado ||
+                  'Activo',
+              })
+            )
 
-        console.log(
-          'ASIGNACIONES CONVERTIDAS:',
-          formattedAssignments
-        )
-
-        setAssignments(formattedAssignments)
+          setEmployees(
+            formattedEmployees
+          )
+        }
       } catch (error) {
         console.error(
-          'Error cargando asignaciones de producción:',
+          'Error cargando empleados:',
           error
         )
       }
     }
 
-    loadProductionAssignments()
-  }, [])
-
-  // Tipos de turno
-  const [shiftTypes, setShiftTypes] = useState<ShiftType[]>(() => {
-    const saved = localStorage.getItem('shiftTypes')
-    return saved
-      ? JSON.parse(saved)
-      : [
-          {
-            id: 1,
-            name: 'Mañana',
-            hours: '8',
-            start: '07:00',
-            end: '15:00',
-            color: 'bg-red-100 text-red-700',
-          },
-          {
-            id: 2,
-            name: 'Tarde',
-            hours: '7',
-            start: '15:00',
-            end: '22:00',
-            color: 'bg-red-100 text-red-700',
-          },
-          {
-            id: 3,
-            name: 'Descanso',
-            hours: '0',
-            color: 'bg-green-100 text-green-700',
-          },
-          {
-            id: 4,
-            name: 'Largo',
-            hours: '15',
-            start: '07:00',
-            end: '22:00',
-            color: 'bg-gray-200 text-gray-800',
-          },
-          {
-            id: 5,
-            name: 'Partido',
-            hours: '10',
-            start: '08:00',
-            end: '13:00',
-            isSplit: true,
-            start2: '17:00',
-            end2: '22:00',
-            color: 'bg-red-100 text-red-700',
-          },
-          {
-            id: 6,
-            name: '7 a 2',
-            hours: '7',
-            start: '07:00',
-            end: '14:00',
-            color: 'bg-red-100 text-red-700',
-          },
-          {
-            id: 7,
-            name: '2 a 10',
-            hours: '8',
-            start: '14:00',
-            end: '22:00',
-            color: 'bg-red-100 text-red-700',
-          },
-          {
-            id: 8,
-            name: 'Noche',
-            hours: '9',
-            start: '22:00',
-            end: '07:00',
-            color: 'bg-red-100 text-red-700',
-          },
-          {
-            id: 9,
-            name: '8 a 4',
-            hours: '8',
-            start: '08:00',
-            end: '16:00',
-            color: 'bg-red-100 text-red-700',
-          },
-          {
-            id: 10,
-            name: '4 a 11',
-            hours: '7',
-            start: '16:00',
-            end: '23:00',
-            color: 'bg-red-100 text-red-700',
-          },
-          {
-            id: 11,
-            name: 'Largo domingo',
-            hours: '15',
-            start: '08:00',
-            end: '23:00',
-            color: 'bg-gray-200 text-gray-800',
-          },
-          {
-            id: 12,
-            name: '3 a 9',
-            hours: '6',
-            start: '15:00',
-            end: '21:00',
-            color: 'bg-red-100 text-red-700',
-          },
-          {
-            id: 13,
-            name: '2 a 9',
-            hours: '7',
-            start: '14:00',
-            end: '21:00',
-            color: 'bg-red-100 text-red-700',
-          },
-          {
-            id: 14,
-            name: 'Largo Zuluaga',
-            hours: '14',
-            start: '07:00',
-            end: '21:00',
-            color: 'bg-gray-200 text-gray-800',
-          },
-        ]
-  })
-
-  // Asignaciones de turnos
-  const [assignments, setAssignments] = useState<Assignment[]>(() => {
-    const saved = localStorage.getItem('assignments')
-
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-
-        return parsed.map((assignment: any) => ({
-          ...assignment,
-          month:
-            typeof assignment.month === 'number'
-              ? assignment.month
-              : 7,
-
-          year:
-            typeof assignment.year === 'number'
-              ? assignment.year
-              : 2026,
-        }))
-      } catch (error) {
-        console.error('Error leyendo asignaciones:', error)
-      }
+    if (usuario) {
+      loadEmployees()
     }
+  }, [usuario])
 
-    return []
-  })
+  /*
+  ========================================================
+  CARGAR ASIGNACIONES DE PRODUCCIÓN
+  ========================================================
+  */
 
-  // Guardado automático en localStorage
+  const [assignments, setAssignments] =
+    useState<Assignment[]>(() => {
+      const saved =
+        localStorage.getItem(
+          'assignments'
+        )
+
+      if (saved) {
+        try {
+          const parsed =
+            JSON.parse(saved)
+
+          return parsed.map(
+            (assignment: any) => ({
+              ...assignment,
+
+              month:
+                typeof assignment.month ===
+                'number'
+                  ? assignment.month
+                  : 7,
+
+              year:
+                typeof assignment.year ===
+                'number'
+                  ? assignment.year
+                  : 2026,
+            })
+          )
+        } catch (error) {
+          console.error(
+            'Error leyendo asignaciones:',
+            error
+          )
+        }
+      }
+
+      return []
+    })
+
   useEffect(() => {
-    localStorage.setItem('employees', JSON.stringify(employees))
+    const loadProductionAssignments =
+      async () => {
+        try {
+          const token =
+            localStorage.getItem(
+              'token'
+            )
+
+          const headers = {
+            Authorization:
+              `Bearer ${token}`,
+          }
+
+          const [
+            employeesResponse,
+            branchesResponse,
+            shiftsResponse,
+            assignmentsResponse,
+          ] = await Promise.all([
+            fetch(
+              'https://crm-rrhh-backend.onrender.com/api/empleados',
+              { headers }
+            ),
+
+            fetch(
+              'https://crm-rrhh-backend.onrender.com/api/sedes',
+              { headers }
+            ),
+
+            fetch(
+              'https://crm-rrhh-backend.onrender.com/api/tipos-turno',
+              { headers }
+            ),
+
+            fetch(
+              'https://crm-rrhh-backend.onrender.com/api/asignaciones',
+              { headers }
+            ),
+          ])
+
+          if (
+            !employeesResponse.ok ||
+            !branchesResponse.ok ||
+            !shiftsResponse.ok ||
+            !assignmentsResponse.ok
+          ) {
+            throw new Error(
+              'No se pudieron cargar todos los datos de producción'
+            )
+          }
+
+          const employeesData =
+            await employeesResponse.json()
+
+          const branchesData =
+            await branchesResponse.json()
+
+          const shiftsData =
+            await shiftsResponse.json()
+
+          const assignmentsData =
+            await assignmentsResponse.json()
+
+          console.log(
+            'EMPLEADOS PRODUCCIÓN:',
+            employeesData
+          )
+
+          console.log(
+            'SEDES PRODUCCIÓN:',
+            branchesData
+          )
+
+          console.log(
+            'TURNOS PRODUCCIÓN:',
+            shiftsData
+          )
+
+          console.log(
+            'ASIGNACIONES PRODUCCIÓN:',
+            assignmentsData
+          )
+
+          const employeeMap =
+            new Map(
+              employeesData.map(
+                (employee: any) => [
+                  Number(
+                    employee.id
+                  ),
+                  employee.nombre,
+                ]
+              )
+            )
+
+          const branchMap =
+            new Map(
+              branchesData.map(
+                (branch: any) => [
+                  Number(
+                    branch.id
+                  ),
+                  branch.nombre,
+                ]
+              )
+            )
+
+          const shiftMap =
+            new Map(
+              shiftsData.map(
+                (shift: any) => [
+                  Number(
+                    shift.id
+                  ),
+                  shift.nombre,
+                ]
+              )
+            )
+
+          const formattedAssignments: Assignment[] =
+            assignmentsData.map(
+              (assignment: any) => {
+                const date =
+                  new Date(
+                    assignment.fecha
+                  )
+
+                return {
+                  id: Number(
+                    assignment.id
+                  ),
+
+                  day:
+                    date.getUTCDate(),
+
+                  /*
+                  IMPORTANTE:
+                  Se conserva el mismo criterio
+                  que ya tienes en tu código.
+                  */
+                  month:
+                    date.getUTCMonth() +
+                    1,
+
+                  year:
+                    date.getUTCFullYear(),
+
+                  branch:
+                    branchMap.get(
+                      Number(
+                        assignment.sede_id
+                      )
+                    ) || '',
+
+                  employee:
+                    employeeMap.get(
+                      Number(
+                        assignment.empleado_id
+                      )
+                    ) || '',
+
+                  shift:
+                    shiftMap.get(
+                      Number(
+                        assignment.turno_id
+                      )
+                    ) || '',
+                }
+              }
+            )
+
+          console.log(
+            'ASIGNACIONES CONVERTIDAS:',
+            formattedAssignments
+          )
+
+          setAssignments(
+            formattedAssignments
+          )
+        } catch (error) {
+          console.error(
+            'Error cargando asignaciones de producción:',
+            error
+          )
+        }
+      }
+
+    if (usuario) {
+      loadProductionAssignments()
+    }
+  }, [usuario])
+
+  /*
+  ========================================================
+  TIPOS DE TURNO
+  ========================================================
+  */
+
+  const [shiftTypes, setShiftTypes] =
+    useState<ShiftType[]>(() => {
+      const saved =
+        localStorage.getItem(
+          'shiftTypes'
+        )
+
+      return saved
+        ? JSON.parse(saved)
+        : [
+            {
+              id: 1,
+              name: 'Mañana',
+              hours: '8',
+              start: '07:00',
+              end: '15:00',
+              color:
+                'bg-red-100 text-red-700',
+            },
+
+            {
+              id: 2,
+              name: 'Tarde',
+              hours: '7',
+              start: '15:00',
+              end: '22:00',
+              color:
+                'bg-red-100 text-red-700',
+            },
+
+            {
+              id: 3,
+              name: 'Descanso',
+              hours: '0',
+              color:
+                'bg-green-100 text-green-700',
+            },
+
+            {
+              id: 4,
+              name: 'Largo',
+              hours: '15',
+              start: '07:00',
+              end: '22:00',
+              color:
+                'bg-gray-200 text-gray-800',
+            },
+
+            {
+              id: 5,
+              name: 'Partido',
+              hours: '10',
+              start: '08:00',
+              end: '13:00',
+              isSplit: true,
+              start2: '17:00',
+              end2: '22:00',
+              color:
+                'bg-red-100 text-red-700',
+            },
+
+            {
+              id: 6,
+              name: '7 a 2',
+              hours: '7',
+              start: '07:00',
+              end: '14:00',
+              color:
+                'bg-red-100 text-red-700',
+            },
+
+            {
+              id: 7,
+              name: '2 a 10',
+              hours: '8',
+              start: '14:00',
+              end: '22:00',
+              color:
+                'bg-red-100 text-red-700',
+            },
+
+            {
+              id: 8,
+              name: 'Noche',
+              hours: '9',
+              start: '22:00',
+              end: '07:00',
+              color:
+                'bg-red-100 text-red-700',
+            },
+
+            {
+              id: 9,
+              name: '8 a 4',
+              hours: '8',
+              start: '08:00',
+              end: '16:00',
+              color:
+                'bg-red-100 text-red-700',
+            },
+
+            {
+              id: 10,
+              name: '4 a 11',
+              hours: '7',
+              start: '16:00',
+              end: '23:00',
+              color:
+                'bg-red-100 text-red-700',
+            },
+
+            {
+              id: 11,
+              name: 'Largo domingo',
+              hours: '15',
+              start: '08:00',
+              end: '23:00',
+              color:
+                'bg-gray-200 text-gray-800',
+            },
+
+            {
+              id: 12,
+              name: '3 a 9',
+              hours: '6',
+              start: '15:00',
+              end: '21:00',
+              color:
+                'bg-red-100 text-red-700',
+            },
+
+            {
+              id: 13,
+              name: '2 a 9',
+              hours: '7',
+              start: '14:00',
+              end: '21:00',
+              color:
+                'bg-red-100 text-red-700',
+            },
+
+            {
+              id: 14,
+              name: 'Largo Zuluaga',
+              hours: '14',
+              start: '07:00',
+              end: '21:00',
+              color:
+                'bg-gray-200 text-gray-800',
+            },
+          ]
+    })
+
+  /*
+  ========================================================
+  GUARDADO LOCAL
+  ========================================================
+  */
+
+  useEffect(() => {
+    localStorage.setItem(
+      'employees',
+      JSON.stringify(employees)
+    )
   }, [employees])
 
   useEffect(() => {
-    localStorage.setItem('shiftTypes', JSON.stringify(shiftTypes))
+    localStorage.setItem(
+      'shiftTypes',
+      JSON.stringify(shiftTypes)
+    )
   }, [shiftTypes])
 
   useEffect(() => {
-    localStorage.setItem('assignments', JSON.stringify(assignments))
+    localStorage.setItem(
+      'assignments',
+      JSON.stringify(assignments)
+    )
   }, [assignments])
+
+  /*
+  ========================================================
+  ACTUALIZAR EMPLEADOS
+  ========================================================
+  */
 
   const updateEmployees = (
     update: React.SetStateAction<Employee[]>
@@ -412,100 +788,161 @@ export default function App() {
         ? update(employees)
         : update
 
-    // Detectar cambios de nombre
-    employees.forEach((oldEmployee) => {
-      const newEmployee = newEmployees.find(
-        (emp) => emp.id === oldEmployee.id
-      )
-
-      if (
-        newEmployee &&
-        newEmployee.name !== oldEmployee.name
-      ) {
-        const oldName = oldEmployee.name
-        const newName = newEmployee.name
-
-        // Actualizar nombres en los turnos
-        setAssignments((previousAssignments) =>
-          previousAssignments.map((assignment) =>
-            assignment.employee.trim() === oldName.trim()
-              ? {
-                  ...assignment,
-                  employee: newName,
-                }
-              : assignment
+    employees.forEach(
+      (oldEmployee) => {
+        const newEmployee =
+          newEmployees.find(
+            (emp) =>
+              emp.id ===
+              oldEmployee.id
           )
-        )
 
-        // Actualizar nombres en las asistencias
-        const savedAttendance =
-          localStorage.getItem('attendanceRecords')
+        if (
+          newEmployee &&
+          newEmployee.name !==
+            oldEmployee.name
+        ) {
+          const oldName =
+            oldEmployee.name
 
-        if (savedAttendance) {
-          try {
-            const attendance = JSON.parse(savedAttendance)
+          const newName =
+            newEmployee.name
 
-            const updatedAttendance = attendance.map(
-              (record: any) =>
-                record.employee === oldName
-                  ? {
-                      ...record,
-                      employee: newName,
-                    }
-                  : record
+          setAssignments(
+            (previousAssignments) =>
+              previousAssignments.map(
+                (assignment) =>
+                  assignment.employee.trim() ===
+                  oldName.trim()
+                    ? {
+                        ...assignment,
+                        employee:
+                          newName,
+                      }
+                    : assignment
+              )
+          )
+
+          const savedAttendance =
+            localStorage.getItem(
+              'attendanceRecords'
             )
 
-            localStorage.setItem(
-              'attendanceRecords',
-              JSON.stringify(updatedAttendance)
-            )
-          } catch (error) {
-            console.error(
-              'Error actualizando asistencias:',
-              error
-            )
+          if (savedAttendance) {
+            try {
+              const attendance =
+                JSON.parse(
+                  savedAttendance
+                )
+
+              const updatedAttendance =
+                attendance.map(
+                  (record: any) =>
+                    record.employee ===
+                    oldName
+                      ? {
+                          ...record,
+                          employee:
+                            newName,
+                        }
+                      : record
+                )
+
+              localStorage.setItem(
+                'attendanceRecords',
+                JSON.stringify(
+                  updatedAttendance
+                )
+              )
+            } catch (error) {
+              console.error(
+                'Error actualizando asistencias:',
+                error
+              )
+            }
           }
         }
       }
-    })
+    )
 
-    setEmployees(newEmployees)
+    setEmployees(
+      newEmployees
+    )
   }
+
+  /*
+  ========================================================
+  SI NO HAY SESIÓN → LOGIN
+  ========================================================
+  */
 
   if (!usuario) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+
         <form
           onSubmit={handleLogin}
           className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-slate-200 p-8"
         >
+
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-blue-700">
-              CRM RRHH
+
+            <h1 className="text-3xl md:text-4xl font-extrabold text-red-600 text-center tracking-tight">
+              DROGUERIA MICROFARMA
             </h1>
 
             <p className="text-slate-500 mt-2">
               Inicia sesión para continuar
             </p>
+
           </div>
 
           <div className="space-y-5">
+
             <div>
+
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Usuario
               </label>
 
-              <input
-                type="text"
+              <select
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Ingresa tu usuario"
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) =>
+                  setUsername(
+                    e.target.value
+                  )
+                }
+                className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-red-500"
                 required
-              />
+              >
+
+                <option value="">
+                  Selecciona tu usuario
+                </option>
+
+                {usuariosLogin.map(
+                  (usuario) => (
+                    <option
+                      key={
+                        usuario.username
+                      }
+                      value={
+                        usuario.username
+                      }
+                    >
+                      {
+                        usuario.etiqueta
+                      }
+                    </option>
+                  )
+                )}
+
+              </select>
+
             </div>
 
             <div>
+
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Contraseña
               </label>
@@ -513,11 +950,16 @@ export default function App() {
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) =>
+                  setPassword(
+                    e.target.value
+                  )
+                }
                 placeholder="Ingresa tu contraseña"
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-red-500"
                 required
               />
+
             </div>
 
             {loginError && (
@@ -529,215 +971,699 @@ export default function App() {
             <button
               type="submit"
               disabled={loadingLogin}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-medium py-3 rounded-xl transition"
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-xl transition-colors"
             >
-              {loadingLogin ? 'Iniciando sesión...' : 'Iniciar sesión'}
+              {loadingLogin
+                ? 'Iniciando sesión...'
+                : 'Iniciar sesión'}
             </button>
+
           </div>
+
         </form>
+
       </div>
     )
   }
 
+  /*
+  ========================================================
+  PERMISOS DEL USUARIO ACTUAL
+  ========================================================
+  */
+
+  const allowedBranches =
+    getAllowedBranches(
+      usuario.rol
+    )
+
+  const isAdmin =
+    usuario.rol === 'ADMIN'
+
+  const isJefe =
+    usuario.rol === 'JEFE'
+
+  const isReadOnly =
+    isJefe
+
+  /*
+  ========================================================
+  SIDEBAR
+  ========================================================
+  */
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
+
       <aside className="w-64 bg-white border-r border-slate-200 p-4">
-        <h1 className="text-2xl font-bold text-blue-700 mb-8">
-          CRM RRHH
+
+        <h1 className="text-2xl font-bold text-red-600 mb-8">
+          MICROFARMA
         </h1>
 
-        <div className="space-y-2 mb-6">
-          {/* Botón para Crear Respaldo */}
+        <div className="mb-6">
+
+          <p className="text-sm text-slate-500">
+            Sesión iniciada como
+          </p>
+
+          <p className="font-semibold text-slate-800">
+            {usuario.nombre}
+          </p>
+
+          <p className="text-xs text-slate-500 mt-1">
+            {usuario.rol}
+          </p>
+
           <button
-            onClick={() => {
-              const backup = {
-                employees,
-                shiftTypes,
-                assignments,
-                attendance: JSON.parse(localStorage.getItem('attendanceRecords') || '[]'),
-              }
-
-              const blob = new Blob([JSON.stringify(backup, null, 2)], {
-                type: 'application/json',
-              })
-
-              const url = URL.createObjectURL(blob)
-
-              const a = document.createElement('a')
-              a.href = url
-              a.download = `respaldo_rrhh_${new Date().toISOString().slice(0, 10)}.json`
-              a.click()
-
-              URL.revokeObjectURL(url)
-            }}
-            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition"
+            onClick={handleLogout}
+            className="mt-3 w-full bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-xl text-sm font-medium transition"
           >
-            💾 Crear respaldo
+            Cerrar sesión
           </button>
 
-          {/* Botón para Restaurar Respaldo */}
-          <label className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition">
-            📂 Restaurar respaldo
-            <input
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (!file) return
-
-                const confirmRestore = window.confirm(
-                  '⚠️ ¿Estás seguro de que deseas restaurar este respaldo?\n\nEsta acción sobrescribirá todos los datos actuales de empleados, turnos y asistencias.'
-                )
-
-                if (!confirmRestore) {
-                  e.target.value = ''
-                  return
-                }
-
-                const reader = new FileReader()
-                reader.onload = (event) => {
-                  try {
-                    const data = JSON.parse(event.target?.result as string)
-
-                    if (data.employees) {
-                      setEmployees(data.employees)
-                      localStorage.setItem('employees', JSON.stringify(data.employees))
-                    }
-                    if (data.shiftTypes) {
-                      setShiftTypes(data.shiftTypes)
-                      localStorage.setItem('shiftTypes', JSON.stringify(data.shiftTypes))
-                    }
-                    if (data.assignments) {
-                      setAssignments(data.assignments)
-                      localStorage.setItem('assignments', JSON.stringify(data.assignments))
-                    }
-                    if (data.attendance) {
-                      localStorage.setItem('attendanceRecords', JSON.stringify(data.attendance))
-                    }
-
-                    alert('¡Respaldo restaurado con éxito!')
-                  } catch (error) {
-                    alert('Error al leer el archivo JSON. Asegúrate de que sea un respaldo válido.')
-                  }
-                }
-
-                reader.readAsText(file)
-                e.target.value = ''
-              }}
-            />
-          </label>
         </div>
 
+        {/* =================================================
+            RESPALDOS
+        ================================================= */}
+
+        {isAdmin && (
+          <div className="space-y-2 mb-6">
+
+            <button
+              onClick={() => {
+
+                const backup = {
+                  employees,
+                  shiftTypes,
+                  assignments,
+
+                  attendance:
+                    JSON.parse(
+                      localStorage.getItem(
+                        'attendanceRecords'
+                      ) || '[]'
+                    ),
+                }
+
+                const blob =
+                  new Blob(
+                    [
+                      JSON.stringify(
+                        backup,
+                        null,
+                        2
+                      ),
+                    ],
+                    {
+                      type:
+                        'application/json',
+                    }
+                  )
+
+                const url =
+                  URL.createObjectURL(
+                    blob
+                  )
+
+                const a =
+                  document.createElement(
+                    'a'
+                  )
+
+                a.href = url
+
+                a.download =
+                  `respaldo_rrhh_${new Date()
+                    .toISOString()
+                    .slice(
+                      0,
+                      10
+                    )}.json`
+
+                a.click()
+
+                URL.revokeObjectURL(
+                  url
+                )
+              }}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition"
+            >
+              💾 Crear respaldo
+            </button>
+
+            <label className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition">
+
+              📂 Restaurar respaldo
+
+              <input
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={(e) => {
+
+                  const file =
+                    e.target.files?.[0]
+
+                  if (!file) return
+
+                  const confirmRestore =
+                    window.confirm(
+                      '⚠️ ¿Estás seguro de que deseas restaurar este respaldo?\n\nEsta acción sobrescribirá todos los datos actuales de empleados, turnos y asistencias.'
+                    )
+
+                  if (
+                    !confirmRestore
+                  ) {
+                    e.target.value =
+                      ''
+
+                    return
+                  }
+
+                  const reader =
+                    new FileReader()
+
+                  reader.onload = (
+                    event
+                  ) => {
+
+                    try {
+
+                      const data =
+                        JSON.parse(
+                          event.target
+                            ?.result as string
+                        )
+
+                      if (
+                        data.employees
+                      ) {
+                        setEmployees(
+                          data.employees
+                        )
+
+                        localStorage.setItem(
+                          'employees',
+                          JSON.stringify(
+                            data.employees
+                          )
+                        )
+                      }
+
+                      if (
+                        data.shiftTypes
+                      ) {
+                        setShiftTypes(
+                          data.shiftTypes
+                        )
+
+                        localStorage.setItem(
+                          'shiftTypes',
+                          JSON.stringify(
+                            data.shiftTypes
+                          )
+                        )
+                      }
+
+                      if (
+                        data.assignments
+                      ) {
+                        setAssignments(
+                          data.assignments
+                        )
+
+                        localStorage.setItem(
+                          'assignments',
+                          JSON.stringify(
+                            data.assignments
+                          )
+                        )
+                      }
+
+                      if (
+                        data.attendance
+                      ) {
+                        localStorage.setItem(
+                          'attendanceRecords',
+                          JSON.stringify(
+                            data.attendance
+                          )
+                        )
+                      }
+
+                      alert(
+                        '¡Respaldo restaurado con éxito!'
+                      )
+
+                    } catch (
+                      error
+                    ) {
+
+                      alert(
+                        'Error al leer el archivo JSON. Asegúrate de que sea un respaldo válido.'
+                      )
+
+                    }
+
+                  }
+
+                  reader.readAsText(
+                    file
+                  )
+
+                  e.target.value =
+                    ''
+
+                }}
+              />
+
+            </label>
+
+          </div>
+        )}
+
+        {/* =================================================
+            MENÚ
+        ================================================= */}
+
         <nav className="space-y-2">
-          <MenuButton
-            label="Dashboard"
-            active={page === 'dashboard'}
-            onClick={() => setPage('dashboard')}
-          />
 
-          <MenuButton
-            label="Empleados"
-            active={page === 'employees'}
-            onClick={() => setPage('employees')}
-          />
+          {/* ADMIN */}
 
-          <MenuButton
-            label="Tipos de turno"
-            active={page === 'shiftTypes'}
-            onClick={() => setPage('shiftTypes')}
-          />
+          {isAdmin && (
+            <>
+              <MenuButton
+                label="Dashboard"
+                active={
+                  page ===
+                  'dashboard'
+                }
+                onClick={() =>
+                  setPage(
+                    'dashboard'
+                  )
+                }
+              />
 
-          <MenuButton
-            label="Turnos"
-            active={page === 'turns'}
-            onClick={() => setPage('turns')}
-          />
+              <MenuButton
+                label="Empleados"
+                active={
+                  page ===
+                  'employees'
+                }
+                onClick={() =>
+                  setPage(
+                    'employees'
+                  )
+                }
+              />
 
-          <MenuButton
-            label="Calendario Domiciliarios"
-            active={page === 'deliveryCalendar'}
-            onClick={() => setPage('deliveryCalendar')}
-          />
+              <MenuButton
+                label="Tipos de turno"
+                active={
+                  page ===
+                  'shiftTypes'
+                }
+                onClick={() =>
+                  setPage(
+                    'shiftTypes'
+                  )
+                }
+              />
 
-          <MenuButton
-            label="Asistencia"
-            active={page === 'attendance'}
-            onClick={() => setPage('attendance')}
-          />
+              <MenuButton
+                label="Turnos"
+                active={
+                  page === 'turns'
+                }
+                onClick={() =>
+                  setPage('turns')
+                }
+              />
 
-          <MenuButton
-            label="Reportes"
-            active={page === 'reports'}
-            onClick={() => setPage('reports')}
-          />
+              <MenuButton
+                label="Calendario Domiciliarios"
+                active={
+                  page ===
+                  'deliveryCalendar'
+                }
+                onClick={() =>
+                  setPage(
+                    'deliveryCalendar'
+                  )
+                }
+              />
+
+              <MenuButton
+                label="Asistencia"
+                active={
+                  page ===
+                  'attendance'
+                }
+                onClick={() =>
+                  setPage(
+                    'attendance'
+                  )
+                }
+              />
+
+              <MenuButton
+                label="Reportes"
+                active={
+                  page ===
+                  'reports'
+                }
+                onClick={() =>
+                  setPage(
+                    'reports'
+                  )
+                }
+              />
+            </>
+          )}
+
+          {/* JEFE */}
+
+          {isJefe && (
+            <>
+              <MenuButton
+                label="Dashboard"
+                active={
+                  page ===
+                  'dashboard'
+                }
+                onClick={() =>
+                  setPage(
+                    'dashboard'
+                  )
+                }
+              />
+
+              <MenuButton
+                label="Empleados"
+                active={
+                  page ===
+                  'employees'
+                }
+                onClick={() =>
+                  setPage(
+                    'employees'
+                  )
+                }
+              />
+
+              <MenuButton
+                label="Tipos de turno"
+                active={
+                  page ===
+                  'shiftTypes'
+                }
+                onClick={() =>
+                  setPage(
+                    'shiftTypes'
+                  )
+                }
+              />
+
+              <MenuButton
+                label="Turnos"
+                active={
+                  page === 'turns'
+                }
+                onClick={() =>
+                  setPage('turns')
+                }
+              />
+
+              <MenuButton
+                label="Calendario Domiciliarios"
+                active={
+                  page ===
+                  'deliveryCalendar'
+                }
+                onClick={() =>
+                  setPage(
+                    'deliveryCalendar'
+                  )
+                }
+              />
+
+              <MenuButton
+                label="Asistencia"
+                active={
+                  page ===
+                  'attendance'
+                }
+                onClick={() =>
+                  setPage(
+                    'attendance'
+                  )
+                }
+              />
+
+              {/* NO REPORTES PARA JEFE */}
+            </>
+          )}
+
+          {/* LÍDERES */}
+
+          {!isAdmin &&
+            !isJefe && (
+              <>
+                <MenuButton
+                  label="Tipos de turno"
+                  active={
+                    page ===
+                    'shiftTypes'
+                  }
+                  onClick={() =>
+                    setPage(
+                      'shiftTypes'
+                    )
+                  }
+                />
+
+                <MenuButton
+                  label="Turnos"
+                  active={
+                    page === 'turns'
+                  }
+                  onClick={() =>
+                    setPage('turns')
+                  }
+                />
+
+                <MenuButton
+                  label="Calendario Domiciliarios"
+                  active={
+                    page ===
+                    'deliveryCalendar'
+                  }
+                  onClick={() =>
+                    setPage(
+                      'deliveryCalendar'
+                    )
+                  }
+                />
+              </>
+            )}
+
         </nav>
+
       </aside>
 
-      {/* Main */}
+      {/* =================================================
+          CONTENIDO PRINCIPAL
+      ================================================= */}
+
       <main className="flex-1 p-6 overflow-auto">
-        {page === 'dashboard' && (
-          <Dashboard
-            employees={employees}
-            shiftTypes={shiftTypes}
-            assignments={assignments}
-            setPage={setPage}
-            selectedBranch={selectedBranch}
-            setSelectedBranch={setSelectedBranch}
-          />
-        )}
 
-        {page === 'employees' && (
-          <Employees
-            employees={employees}
-            setEmployees={updateEmployees}
-          />
-        )}
+        {/* DASHBOARD */}
 
-        {page === 'shiftTypes' && (
-          <ShiftTypes
-            shiftTypes={shiftTypes}
-            setShiftTypes={setShiftTypes}
-          />
-        )}
+        {page ===
+          'dashboard' &&
+          (isAdmin ||
+            isJefe) && (
+            <Dashboard
+              employees={
+                employees
+              }
+
+              shiftTypes={
+                shiftTypes
+              }
+
+              assignments={
+                assignments
+              }
+
+              setPage={
+                setPage
+              }
+
+              selectedBranch={
+                selectedBranch
+              }
+
+              setSelectedBranch={
+                setSelectedBranch
+              }
+            />
+          )}
+
+        {/* EMPLEADOS */}
+
+        {page ===
+          'employees' &&
+          (isAdmin ||
+            isJefe) && (
+            <Employees
+              employees={
+                employees
+              }
+
+              setEmployees={
+                updateEmployees
+              }
+            />
+          )}
+
+        {/* TIPOS DE TURNO */}
+
+        {page ===
+          'shiftTypes' && (
+            <ShiftTypes
+              shiftTypes={
+                shiftTypes
+              }
+
+              setShiftTypes={
+                setShiftTypes
+              }
+
+              readOnly={
+                !isAdmin
+              }
+            />
+          )}
+
+        {/* =================================================
+            CALENDARIO DE TURNOS
+        ================================================= */}
 
         {page === 'turns' && (
           <Calendar
-            assignments={assignments}
-            setAssignments={setAssignments}
-            employees={employees}
-            shiftTypes={shiftTypes}
-            selectedBranch={selectedBranch}
-            setSelectedBranch={setSelectedBranch}
+
+            assignments={
+              assignments
+            }
+
+            setAssignments={
+              setAssignments
+            }
+
+            employees={
+              employees
+            }
+
+            shiftTypes={
+              shiftTypes
+            }
+
+            selectedBranch={
+              selectedBranch
+            }
+
+            setSelectedBranch={
+              setSelectedBranch
+            }
+
+            /*
+            Aquí enviamos las sedes
+            permitidas según el usuario.
+            */
+
+            allowedBranches={
+              allowedBranches
+            }
+
+            /*
+            Jefe = solo lectura.
+            Los líderes y Admin pueden modificar.
+            */
+
+            readOnly={
+              isReadOnly
+            }
+
           />
         )}
 
-        {page === 'deliveryCalendar' && (
-          <DeliveryCalendar
-            employees={employees}
-            shiftTypes={shiftTypes}
-          />
-        )}
+        {/* CALENDARIO DOMICILIARIOS */}
 
-        {page === 'attendance' && (
-          <Attendance
-            assignments={assignments}
-            shiftTypes={shiftTypes}
-            employees={employees}
-          />
-        )}
+        {page ===
+          'deliveryCalendar' && (
+            <DeliveryCalendar
+              employees={
+                employees
+              }
 
-        {page === 'reports' && (
-          <Reports
-            assignments={assignments}
-            shiftTypes={shiftTypes}
-          />
-        )}
+              shiftTypes={
+                shiftTypes
+              }
+            />
+          )}
+
+        {/* ASISTENCIA */}
+
+        {page ===
+          'attendance' &&
+          (isAdmin ||
+            isJefe) && (
+            <Attendance
+              assignments={
+                assignments
+              }
+
+              shiftTypes={
+                shiftTypes
+              }
+
+              employees={
+                employees
+              }
+            />
+          )}
+
+        {/* REPORTES SOLO ADMIN */}
+
+        {page ===
+          'reports' &&
+          isAdmin && (
+            <Reports
+              assignments={
+                assignments
+              }
+
+              shiftTypes={
+                shiftTypes
+              }
+            />
+          )}
+
       </main>
+
     </div>
   )
 }
+
+/*
+=========================================================
+BOTÓN DEL MENÚ
+=========================================================
+*/
 
 function MenuButton({
   label,
@@ -753,7 +1679,7 @@ function MenuButton({
       onClick={onClick}
       className={`w-full text-left px-4 py-3 rounded-xl transition ${
         active
-          ? 'bg-blue-50 text-blue-700 font-medium'
+          ? 'bg-red-50 text-red-700 font-medium'
           : 'hover:bg-slate-100 text-slate-700'
       }`}
     >

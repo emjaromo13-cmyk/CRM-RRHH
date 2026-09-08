@@ -16,6 +16,7 @@ type ShiftType = {
 type Props = {
   shiftTypes: ShiftType[];
   setShiftTypes: Dispatch<SetStateAction<ShiftType[]>>;
+  readOnly?: boolean;
 };
 
 function hoursBetween(start?: string, end?: string) {
@@ -43,7 +44,11 @@ function totalHours(shift: Partial<ShiftType>) {
   return total.toString();
 }
 
-export default function ShiftTypes({ shiftTypes, setShiftTypes }: Props) {
+export default function ShiftTypes({
+  shiftTypes,
+  setShiftTypes,
+  readOnly = false,
+}: Props) {
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [form, setForm] = useState<{
@@ -131,72 +136,74 @@ export default function ShiftTypes({ shiftTypes, setShiftTypes }: Props) {
 
       <p className="text-slate-500 mb-6">Configuración de horarios</p>
 
-      <div className="bg-white rounded-2xl border p-5 mb-6">
-        <h3 className="font-bold text-lg mb-4">
-          {editingId ? "Editar turno" : "Crear turno"}
-        </h3>
+      {!readOnly && (
+        <div className="bg-white rounded-2xl border p-5 mb-6">
+          <h3 className="font-bold text-lg mb-4">
+            {editingId ? "Editar turno" : "Crear turno"}
+          </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input
-            placeholder="Nombre turno"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="border rounded-xl px-4 py-3"
-          />
-
-          <input
-            type="time"
-            value={form.start}
-            onChange={(e) => setForm({ ...form, start: e.target.value })}
-            className="border rounded-xl px-4 py-3"
-          />
-
-          <input
-            type="time"
-            value={form.end}
-            onChange={(e) => setForm({ ...form, end: e.target.value })}
-            className="border rounded-xl px-4 py-3"
-          />
-
-          <button
-            onClick={saveShift}
-            className="bg-blue-600 text-white rounded-xl py-3 font-semibold hover:bg-blue-700 transition"
-          >
-            Guardar
-          </button>
-        </div>
-
-        <label className="flex gap-3 mt-4 items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={form.isSplit}
-            onChange={(e) => setForm({ ...form, isSplit: e.target.checked })}
-          />
-          Turno partido
-        </label>
-
-        {form.isSplit && (
-          <div className="grid grid-cols-2 gap-4 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <input
-              type="time"
-              value={form.start2}
-              onChange={(e) => setForm({ ...form, start2: e.target.value })}
+              placeholder="Nombre turno"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="border rounded-xl px-4 py-3"
             />
 
             <input
               type="time"
-              value={form.end2}
-              onChange={(e) => setForm({ ...form, end2: e.target.value })}
+              value={form.start}
+              onChange={(e) => setForm({ ...form, start: e.target.value })}
               className="border rounded-xl px-4 py-3"
             />
+
+            <input
+              type="time"
+              value={form.end}
+              onChange={(e) => setForm({ ...form, end: e.target.value })}
+              className="border rounded-xl px-4 py-3"
+            />
+
+            <button
+              onClick={saveShift}
+              className="bg-blue-600 text-white rounded-xl py-3 font-semibold hover:bg-blue-700 transition"
+            >
+              Guardar
+            </button>
           </div>
-        )}
 
-        <div className="mt-4 font-bold">
-          Horas estimadas: {totalHours(form)} h
+          <label className="flex gap-3 mt-4 items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.isSplit}
+              onChange={(e) => setForm({ ...form, isSplit: e.target.checked })}
+            />
+            Turno partido
+          </label>
+
+          {form.isSplit && (
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <input
+                type="time"
+                value={form.start2}
+                onChange={(e) => setForm({ ...form, start2: e.target.value })}
+                className="border rounded-xl px-4 py-3"
+              />
+
+              <input
+                type="time"
+                value={form.end2}
+                onChange={(e) => setForm({ ...form, end2: e.target.value })}
+                className="border rounded-xl px-4 py-3"
+              />
+            </div>
+          )}
+
+          <div className="mt-4 font-bold">
+            Horas estimadas: {totalHours(form)} h
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="bg-white rounded-2xl border overflow-hidden">
         <table className="w-full">
@@ -225,19 +232,27 @@ export default function ShiftTypes({ shiftTypes, setShiftTypes }: Props) {
                 <td className="p-4 text-center">{s.hours || totalHours(s)} h</td>
 
                 <td className="p-4 text-center">
-                  <button
-                    onClick={() => editShift(s)}
-                    className="bg-yellow-400 text-white px-3 py-1 rounded mr-2 hover:bg-yellow-500 transition"
-                  >
-                    ✏️
-                  </button>
+                  {!readOnly ? (
+                    <>
+                      <button
+                        onClick={() => editShift(s)}
+                        className="bg-yellow-400 text-white px-3 py-1 rounded mr-2 hover:bg-yellow-500 transition"
+                      >
+                        ✏️
+                      </button>
 
-                  <button
-                    onClick={() => deleteShift(s.id)}
-                    className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition"
-                  >
-                    🗑️
-                  </button>
+                      <button
+                        onClick={() => deleteShift(s.id)}
+                        className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition"
+                      >
+                        🗑️
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-sm text-slate-400 italic">
+                      Solo lectura
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
