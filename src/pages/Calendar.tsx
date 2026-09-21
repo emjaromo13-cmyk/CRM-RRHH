@@ -42,6 +42,7 @@ export default function Calendar({
   allowedBranches,
   readOnly = false,
 }: Props) {
+const token = localStorage.getItem('token');
   const branches = [
     'PINOS',
     'GUALANDAY',
@@ -321,37 +322,108 @@ export default function Calendar({
   // AGREGAR TURNO INDIVIDUAL
   // =========================================================
 
-  const createQuickAssignment = () => {
-    if (readOnly) return;
+const createQuickAssignment = async () => {
+  if (readOnly) return;
 
-    if (
-      !quickEmployee ||
-      !quickShift
-    ) {
-      return;
+  if (!quickEmployee || !quickShift) {
+    return;
+  }
+
+  const alreadyExists = assignments.some(
+    (a) =>
+      a.day === quickDay &&
+      a.month === selectedMonth &&
+      a.year === selectedYear &&
+      a.branch === selectedBranch &&
+      a.employee === quickEmployee
+  );
+
+  if (alreadyExists) {
+    alert(
+      'Este empleado ya tiene un turno asignado en este día.'
+    );
+    return;
+  }
+
+  const employee = employees.find(
+    (e) => e.name === quickEmployee
+  );
+
+  const turno = shiftTypes.find(
+    (t) => t.name === quickShift
+  );
+
+  if (!employee || !turno) {
+    alert(
+      'No se pudo identificar el empleado o el turno.'
+    );
+    return;
+  }
+
+  try {
+    const sedesResponse = await fetch(
+      'https://crm-rrhh-backend.onrender.com/api/sedes',
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!sedesResponse.ok) {
+      throw new Error(
+        'No se pudieron consultar las sedes.'
+      );
     }
 
-    const alreadyExists =
-      assignments.some(
-        (a) =>
-          a.day === quickDay &&
-          a.month === selectedMonth &&
-          a.year === selectedYear &&
-          a.branch === selectedBranch &&
-          a.employee === quickEmployee
-      );
+    const sedes = await sedesResponse.json();
 
-    if (alreadyExists) {
-      alert(
-        'Este empleado ya tiene un turno asignado en este día.'
+    const sede = sedes.find(
+      (s: any) =>
+        s.nombre === selectedBranch
+    );
+
+    if (!sede) {
+      throw new Error(
+        `No se encontró la sede ${selectedBranch}.`
       );
-      return;
+    }
+
+    const fecha = `${selectedYear}-${String(
+      selectedMonth + 1
+    ).padStart(2, '0')}-${String(
+      quickDay
+    ).padStart(2, '0')}`;
+
+    const response = await fetch(
+      'https://crm-rrhh-backend.onrender.com/api/asignaciones',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          empleado_id: employee.id,
+          sede_id: sede.id,
+          fecha,
+          turno_id: turno.id,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.mensaje ||
+        data.error ||
+        'No se pudo guardar el turno.'
+      );
     }
 
     const newAssignment: Assignment = {
-      id:
-        Date.now() +
-        Math.random(),
+      id: data.id,
       day: quickDay,
       month: selectedMonth,
       year: selectedYear,
@@ -360,16 +432,27 @@ export default function Calendar({
       shift: quickShift,
     };
 
-    setAssignments([
-      ...assignments,
+    setAssignments((prev) => [
+      ...prev,
       newAssignment,
     ]);
 
     setShowForm(false);
     setQuickEmployee('');
     setQuickShift('');
-  };
 
+  } catch (error: any) {
+    console.error(
+      'Error al guardar asignación:',
+      error
+    );
+
+    alert(
+      error.message ||
+      'No se pudo guardar el turno.'
+    );
+  }
+};
   // =========================================================
   // ASIGNAR RANGO
   // =========================================================
