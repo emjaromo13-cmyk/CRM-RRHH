@@ -457,89 +457,174 @@ const createQuickAssignment = async () => {
   // ASIGNAR RANGO
   // =========================================================
 
-  const createBulkAssignment = () => {
-    if (readOnly) return;
+ const createBulkAssignment = async () => {
+  if (readOnly) return;
 
-    if (
-      !bulkAssignment.employee ||
-      !bulkAssignment.shift
-    ) {
-      return;
-    }
+  if (
+    !bulkAssignment.employee ||
+    !bulkAssignment.shift
+  ) {
+    alert('Selecciona empleado y turno.');
+    return;
+  }
 
-    if (
-      bulkAssignment.startDay < 1 ||
-      bulkAssignment.endDay >
-        daysInMonth ||
-      bulkAssignment.startDay >
-        bulkAssignment.endDay
-    ) {
-      alert(
-        'El rango de días no es válido.'
+  if (
+    bulkAssignment.startDay < 1 ||
+    bulkAssignment.endDay > daysInMonth ||
+    bulkAssignment.startDay > bulkAssignment.endDay
+  ) {
+    alert('El rango de días no es válido.');
+    return;
+  }
+
+  const employee = employees.find(
+    (e) => e.name === bulkAssignment.employee
+  );
+
+  const turno = shiftTypes.find(
+    (t) => t.name === bulkAssignment.shift
+  );
+
+  if (!employee || !turno) {
+    alert(
+      'No se pudo identificar el empleado o el turno.'
+    );
+    return;
+  }
+
+  try {
+    // Obtener las sedes permitidas para el usuario
+    const sedesResponse = await fetch(
+      'https://crm-rrhh-backend.onrender.com/api/sedes',
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!sedesResponse.ok) {
+      throw new Error(
+        'No se pudieron consultar las sedes.'
       );
-      return;
     }
 
-    const newAssignments: Assignment[] =
-      [];
+    const sedes = await sedesResponse.json();
+
+    const sede = sedes.find(
+      (s: any) => s.nombre === selectedBranch
+    );
+
+    if (!sede) {
+      throw new Error(
+        `No se encontró la sede ${selectedBranch}.`
+      );
+    }
+
+    const assignmentsToCreate: {
+      day: number;
+      fecha: string;
+    }[] = [];
 
     for (
-      let day =
-        bulkAssignment.startDay;
-      day <=
-      bulkAssignment.endDay;
+      let day = bulkAssignment.startDay;
+      day <= bulkAssignment.endDay;
       day++
     ) {
-      const alreadyExists =
-        assignments.some(
-          (a) =>
-            a.day === day &&
-            a.month ===
-              selectedMonth &&
-            a.year ===
-              selectedYear &&
-            a.branch ===
-              selectedBranch &&
-            a.employee ===
-              bulkAssignment.employee
-        );
+      const alreadyExists = assignments.some(
+        (a) =>
+          a.day === day &&
+          a.month === selectedMonth &&
+          a.year === selectedYear &&
+          a.branch === selectedBranch &&
+          a.employee === bulkAssignment.employee
+      );
 
       if (!alreadyExists) {
-        newAssignments.push({
-          id:
-            Date.now() +
-            day +
-            Math.random(),
+        const fecha =
+          `${selectedYear}-${String(
+            selectedMonth + 1
+          ).padStart(2, '0')}-${String(day).padStart(
+            2,
+            '0'
+          )}`;
+
+        assignmentsToCreate.push({
           day,
-          month:
-            selectedMonth,
-          year:
-            selectedYear,
-          branch:
-            selectedBranch,
-          employee:
-            bulkAssignment.employee,
-          shift:
-            bulkAssignment.shift,
+          fecha,
         });
       }
     }
 
-    if (
-      newAssignments.length === 0
-    ) {
+    if (assignmentsToCreate.length === 0) {
       alert(
         'El empleado ya tiene turnos asignados en todos los días seleccionados.'
       );
       return;
     }
 
-    setAssignments([
-      ...assignments,
-      ...newAssignments,
-    ]);
-  };
+    const createdAssignments: Assignment[] = [];
 
+    for (const item of assignmentsToCreate) {
+      const response = await fetch(
+        'https://crm-rrhh-backend.onrender.com/api/asignaciones',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            empleado_id: employee.id,
+            sede_id: sede.id,
+            fecha: item.fecha,
+            turno_id: turno.id,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.mensaje ||
+            data.error ||
+            `No se pudo guardar el día ${item.day}.`
+        );
+      }
+
+      createdAssignments.push({
+        id: data.id,
+        day: item.day,
+        month: selectedMonth,
+        year: selectedYear,
+        branch: selectedBranch,
+        employee: bulkAssignment.employee,
+        shift: bulkAssignment.shift,
+      });
+    }
+
+    setAssignments((prev) => [
+      ...prev,
+      ...createdAssignments,
+    ]);
+
+    alert(
+      `Se guardaron ${createdAssignments.length} turno(s) correctamente.`
+    );
+
+  } catch (error: any) {
+    console.error(
+      'Error al guardar asignación masiva:',
+      error
+    );
+
+    alert(
+      error.message ||
+        'No se pudieron guardar los turnos.'
+    );
+  }
+};
   // =========================================================
   // EXPORTAR PDF SEDE ACTUAL
   // =========================================================
