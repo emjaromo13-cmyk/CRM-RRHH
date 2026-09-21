@@ -536,9 +536,8 @@ export default function App() {
                   Se conserva el mismo criterio
                   que ya tienes en tu código.
                   */
-                  month:
-                    date.getUTCMonth() +
-                    1,
+                 month:
+  date.getUTCMonth(),
 
                   year:
                     date.getUTCFullYear(),
