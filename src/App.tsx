@@ -268,14 +268,7 @@ export default function App() {
   */
 
   const [employees, setEmployees] =
-    useState<Employee[]>(() => {
-      const saved =
-        localStorage.getItem('employees')
-
-      return saved
-        ? JSON.parse(saved)
-        : []
-    })
+  useState<Employee[]>([])
 
   useEffect(() => {
     const loadEmployees = async () => {
@@ -493,11 +486,7 @@ const [assignments, setAssignments] =
                   day:
                     date.getUTCDate(),
 
-                  /*
-                  IMPORTANTE:
-                  Se conserva el mismo criterio
-                  que ya tienes en tu código.
-                  */
+                 
                  month:
   date.getUTCMonth(),
 
@@ -556,184 +545,10 @@ const [assignments, setAssignments] =
   */
 
   const [shiftTypes, setShiftTypes] =
-    useState<ShiftType[]>(() => {
-      const saved =
-        localStorage.getItem(
-          'shiftTypes'
-        )
+  useState<ShiftType[]>([])
 
-      return saved
-        ? JSON.parse(saved)
-        : [
-            {
-              id: 1,
-              name: 'Mañana',
-              hours: '8',
-              start: '07:00',
-              end: '15:00',
-              color:
-                'bg-red-100 text-red-700',
-            },
-
-            {
-              id: 2,
-              name: 'Tarde',
-              hours: '7',
-              start: '15:00',
-              end: '22:00',
-              color:
-                'bg-red-100 text-red-700',
-            },
-
-            {
-              id: 3,
-              name: 'Descanso',
-              hours: '0',
-              color:
-                'bg-green-100 text-green-700',
-            },
-
-            {
-              id: 4,
-              name: 'Largo',
-              hours: '15',
-              start: '07:00',
-              end: '22:00',
-              color:
-                'bg-gray-200 text-gray-800',
-            },
-
-            {
-              id: 5,
-              name: 'Partido',
-              hours: '10',
-              start: '08:00',
-              end: '13:00',
-              isSplit: true,
-              start2: '17:00',
-              end2: '22:00',
-              color:
-                'bg-red-100 text-red-700',
-            },
-
-            {
-              id: 6,
-              name: '7 a 2',
-              hours: '7',
-              start: '07:00',
-              end: '14:00',
-              color:
-                'bg-red-100 text-red-700',
-            },
-
-            {
-              id: 7,
-              name: '2 a 10',
-              hours: '8',
-              start: '14:00',
-              end: '22:00',
-              color:
-                'bg-red-100 text-red-700',
-            },
-
-            {
-              id: 8,
-              name: 'Noche',
-              hours: '9',
-              start: '22:00',
-              end: '07:00',
-              color:
-                'bg-red-100 text-red-700',
-            },
-
-            {
-              id: 9,
-              name: '8 a 4',
-              hours: '8',
-              start: '08:00',
-              end: '16:00',
-              color:
-                'bg-red-100 text-red-700',
-            },
-
-            {
-              id: 10,
-              name: '4 a 11',
-              hours: '7',
-              start: '16:00',
-              end: '23:00',
-              color:
-                'bg-red-100 text-red-700',
-            },
-
-            {
-              id: 11,
-              name: 'Largo domingo',
-              hours: '15',
-              start: '08:00',
-              end: '23:00',
-              color:
-                'bg-gray-200 text-gray-800',
-            },
-
-            {
-              id: 12,
-              name: '3 a 9',
-              hours: '6',
-              start: '15:00',
-              end: '21:00',
-              color:
-                'bg-red-100 text-red-700',
-            },
-
-            {
-              id: 13,
-              name: '2 a 9',
-              hours: '7',
-              start: '14:00',
-              end: '21:00',
-              color:
-                'bg-red-100 text-red-700',
-            },
-
-            {
-              id: 14,
-              name: 'Largo Zuluaga',
-              hours: '14',
-              start: '07:00',
-              end: '21:00',
-              color:
-                'bg-gray-200 text-gray-800',
-            },
-          ]
-    })
-
-  /*
-  ========================================================
-  GUARDADO LOCAL
-  ========================================================
-  */
-
-  useEffect(() => {
-    localStorage.setItem(
-      'employees',
-      JSON.stringify(employees)
-    )
-  }, [employees])
-
-  useEffect(() => {
-    localStorage.setItem(
-      'shiftTypes',
-      JSON.stringify(shiftTypes)
-    )
-  }, [shiftTypes])
-
-  useEffect(() => {
-    localStorage.setItem(
-      'assignments',
-      JSON.stringify(assignments)
-    )
-  }, [assignments])
+  
+ 
 
   /*
   ========================================================
