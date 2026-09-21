@@ -982,7 +982,86 @@ app.put(
     }
   }
 )
+// =====================================================
+// ELIMINAR ASIGNACIONES POR RANGO
+// =====================================================
 
+app.delete(
+  '/api/asignaciones/rango',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  verificarSede,
+  async (req, res) => {
+    try {
+      const {
+        empleado_id,
+        sede_id,
+        fecha_inicio,
+        fecha_fin,
+      } = req.body
+
+      if (
+        !empleado_id ||
+        !sede_id ||
+        !fecha_inicio ||
+        !fecha_fin
+      ) {
+        return res.status(400).json({
+          mensaje:
+            'empleado_id, sede_id, fecha_inicio y fecha_fin son obligatorios',
+        })
+      }
+
+      if (fecha_inicio > fecha_fin) {
+        return res.status(400).json({
+          mensaje:
+            'La fecha de inicio no puede ser posterior a la fecha final',
+        })
+      }
+
+      const result = await pool.query(
+        `
+        DELETE FROM asignaciones
+        WHERE empleado_id = $1
+          AND sede_id = $2
+          AND fecha BETWEEN $3 AND $4
+        RETURNING id
+        `,
+        [
+          empleado_id,
+          sede_id,
+          fecha_inicio,
+          fecha_fin,
+        ]
+      )
+
+      res.json({
+        mensaje: `Se eliminaron ${result.rows.length} turno(s) correctamente.`,
+        eliminadas: result.rows.length,
+        ids: result.rows.map(
+          (asignacion) => asignacion.id
+        ),
+      })
+    } catch (error) {
+      console.error(
+        'Error al eliminar asignaciones por rango:',
+        error
+      )
+
+      res.status(500).json({
+        mensaje:
+          'Error al eliminar las asignaciones del rango',
+        error: error.message,
+      })
+    }
+  }
+)
 // =====================================================
 // ELIMINAR ASIGNACIÓN
 // =====================================================
