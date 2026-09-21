@@ -42,7 +42,8 @@ export default function Calendar({
   allowedBranches,
   readOnly = false,
 }: Props) {
-const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token');
+
   const branches = [
     'PINOS',
     'GUALANDAY',
@@ -322,250 +323,79 @@ const token = localStorage.getItem('token');
   // AGREGAR TURNO INDIVIDUAL
   // =========================================================
 
-const createQuickAssignment = async () => {
-  if (readOnly) return;
+  const createQuickAssignment = async () => {
+    if (readOnly) return;
 
-  if (!quickEmployee || !quickShift) {
-    return;
-  }
-
-  const alreadyExists = assignments.some(
-    (a) =>
-      a.day === quickDay &&
-      a.month === selectedMonth &&
-      a.year === selectedYear &&
-      a.branch === selectedBranch &&
-      a.employee === quickEmployee
-  );
-
-  if (alreadyExists) {
-    alert(
-      'Este empleado ya tiene un turno asignado en este día.'
-    );
-    return;
-  }
-
-  const employee = employees.find(
-    (e) => e.name === quickEmployee
-  );
-
-  const turno = shiftTypes.find(
-    (t) => t.name === quickShift
-  );
-
-  if (!employee || !turno) {
-    alert(
-      'No se pudo identificar el empleado o el turno.'
-    );
-    return;
-  }
-
-  try {
-    const sedesResponse = await fetch(
-      'https://crm-rrhh-backend.onrender.com/api/sedes',
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (!sedesResponse.ok) {
-      throw new Error(
-        'No se pudieron consultar las sedes.'
-      );
+    if (!quickEmployee || !quickShift) {
+      return;
     }
 
-    const sedes = await sedesResponse.json();
-
-    const sede = sedes.find(
-      (s: any) =>
-        s.nombre === selectedBranch
+    const alreadyExists = assignments.some(
+      (a) =>
+        a.day === quickDay &&
+        a.month === selectedMonth &&
+        a.year === selectedYear &&
+        a.branch === selectedBranch &&
+        a.employee === quickEmployee
     );
 
-    if (!sede) {
-      throw new Error(
-        `No se encontró la sede ${selectedBranch}.`
-      );
-    }
-
-    const fecha = `${selectedYear}-${String(
-      selectedMonth + 1
-    ).padStart(2, '0')}-${String(
-      quickDay
-    ).padStart(2, '0')}`;
-
-    const response = await fetch(
-      'https://crm-rrhh-backend.onrender.com/api/asignaciones',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          empleado_id: employee.id,
-          sede_id: sede.id,
-          fecha,
-          turno_id: turno.id,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.mensaje ||
-        data.error ||
-        'No se pudo guardar el turno.'
-      );
-    }
-
-    const newAssignment: Assignment = {
-      id: data.id,
-      day: quickDay,
-      month: selectedMonth,
-      year: selectedYear,
-      branch: selectedBranch,
-      employee: quickEmployee,
-      shift: quickShift,
-    };
-
-    setAssignments((prev) => [
-      ...prev,
-      newAssignment,
-    ]);
-
-    setShowForm(false);
-    setQuickEmployee('');
-    setQuickShift('');
-
-  } catch (error: any) {
-    console.error(
-      'Error al guardar asignación:',
-      error
-    );
-
-    alert(
-      error.message ||
-      'No se pudo guardar el turno.'
-    );
-  }
-};
-  // =========================================================
-  // ASIGNAR RANGO
-  // =========================================================
-
- const createBulkAssignment = async () => {
-  if (readOnly) return;
-
-  if (
-    !bulkAssignment.employee ||
-    !bulkAssignment.shift
-  ) {
-    alert('Selecciona empleado y turno.');
-    return;
-  }
-
-  if (
-    bulkAssignment.startDay < 1 ||
-    bulkAssignment.endDay > daysInMonth ||
-    bulkAssignment.startDay > bulkAssignment.endDay
-  ) {
-    alert('El rango de días no es válido.');
-    return;
-  }
-
-  const employee = employees.find(
-    (e) => e.name === bulkAssignment.employee
-  );
-
-  const turno = shiftTypes.find(
-    (t) => t.name === bulkAssignment.shift
-  );
-
-  if (!employee || !turno) {
-    alert(
-      'No se pudo identificar el empleado o el turno.'
-    );
-    return;
-  }
-
-  try {
-    // Obtener las sedes permitidas para el usuario
-    const sedesResponse = await fetch(
-      'https://crm-rrhh-backend.onrender.com/api/sedes',
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (!sedesResponse.ok) {
-      throw new Error(
-        'No se pudieron consultar las sedes.'
-      );
-    }
-
-    const sedes = await sedesResponse.json();
-
-    const sede = sedes.find(
-      (s: any) => s.nombre === selectedBranch
-    );
-
-    if (!sede) {
-      throw new Error(
-        `No se encontró la sede ${selectedBranch}.`
-      );
-    }
-
-    const assignmentsToCreate: {
-      day: number;
-      fecha: string;
-    }[] = [];
-
-    for (
-      let day = bulkAssignment.startDay;
-      day <= bulkAssignment.endDay;
-      day++
-    ) {
-      const alreadyExists = assignments.some(
-        (a) =>
-          a.day === day &&
-          a.month === selectedMonth &&
-          a.year === selectedYear &&
-          a.branch === selectedBranch &&
-          a.employee === bulkAssignment.employee
-      );
-
-      if (!alreadyExists) {
-        const fecha =
-          `${selectedYear}-${String(
-            selectedMonth + 1
-          ).padStart(2, '0')}-${String(day).padStart(
-            2,
-            '0'
-          )}`;
-
-        assignmentsToCreate.push({
-          day,
-          fecha,
-        });
-      }
-    }
-
-    if (assignmentsToCreate.length === 0) {
+    if (alreadyExists) {
       alert(
-        'El empleado ya tiene turnos asignados en todos los días seleccionados.'
+        'Este empleado ya tiene un turno asignado en este día.'
       );
       return;
     }
 
-    const createdAssignments: Assignment[] = [];
+    const employee = employees.find(
+      (e) => e.name === quickEmployee
+    );
 
-    for (const item of assignmentsToCreate) {
+    const turno = shiftTypes.find(
+      (t) => t.name === quickShift
+    );
+
+    if (!employee || !turno) {
+      alert(
+        'No se pudo identificar el empleado o el turno.'
+      );
+      return;
+    }
+
+    try {
+      const sedesResponse = await fetch(
+        'https://crm-rrhh-backend.onrender.com/api/sedes',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!sedesResponse.ok) {
+        throw new Error(
+          'No se pudieron consultar las sedes.'
+        );
+      }
+
+      const sedes = await sedesResponse.json();
+
+      const sede = sedes.find(
+        (s: any) =>
+          s.nombre === selectedBranch
+      );
+
+      if (!sede) {
+        throw new Error(
+          `No se encontró la sede ${selectedBranch}.`
+        );
+      }
+
+      const fecha = `${selectedYear}-${String(
+        selectedMonth + 1
+      ).padStart(2, '0')}-${String(
+        quickDay
+      ).padStart(2, '0')}`;
+
       const response = await fetch(
         'https://crm-rrhh-backend.onrender.com/api/asignaciones',
         {
@@ -577,7 +407,7 @@ const createQuickAssignment = async () => {
           body: JSON.stringify({
             empleado_id: employee.id,
             sede_id: sede.id,
-            fecha: item.fecha,
+            fecha,
             turno_id: turno.id,
           }),
         }
@@ -588,43 +418,216 @@ const createQuickAssignment = async () => {
       if (!response.ok) {
         throw new Error(
           data.mensaje ||
-            data.error ||
-            `No se pudo guardar el día ${item.day}.`
+          data.error ||
+          'No se pudo guardar el turno.'
         );
       }
 
-      createdAssignments.push({
+      const newAssignment: Assignment = {
         id: data.id,
-        day: item.day,
+        day: quickDay,
         month: selectedMonth,
         year: selectedYear,
         branch: selectedBranch,
-        employee: bulkAssignment.employee,
-        shift: bulkAssignment.shift,
-      });
+        employee: quickEmployee,
+        shift: quickShift,
+      };
+
+      setAssignments((prev) => [
+        ...prev,
+        newAssignment,
+      ]);
+
+      setShowForm(false);
+      setQuickEmployee('');
+      setQuickShift('');
+
+    } catch (error: any) {
+      console.error(
+        'Error al guardar asignación:',
+        error
+      );
+
+      alert(
+        error.message ||
+        'No se pudo guardar el turno.'
+      );
+    }
+  };
+
+  // =========================================================
+  // ASIGNAR RANGO
+  // =========================================================
+
+  const createBulkAssignment = async () => {
+    if (readOnly) return;
+
+    if (
+      !bulkAssignment.employee ||
+      !bulkAssignment.shift
+    ) {
+      alert('Selecciona empleado y turno.');
+      return;
     }
 
-    setAssignments((prev) => [
-      ...prev,
-      ...createdAssignments,
-    ]);
+    if (
+      bulkAssignment.startDay < 1 ||
+      bulkAssignment.endDay > daysInMonth ||
+      bulkAssignment.startDay > bulkAssignment.endDay
+    ) {
+      alert('El rango de días no es válido.');
+      return;
+    }
 
-    alert(
-      `Se guardaron ${createdAssignments.length} turno(s) correctamente.`
+    const employee = employees.find(
+      (e) => e.name === bulkAssignment.employee
     );
 
-  } catch (error: any) {
-    console.error(
-      'Error al guardar asignación masiva:',
-      error
+    const turno = shiftTypes.find(
+      (t) => t.name === bulkAssignment.shift
     );
 
-    alert(
-      error.message ||
-        'No se pudieron guardar los turnos.'
-    );
-  }
-};
+    if (!employee || !turno) {
+      alert(
+        'No se pudo identificar el empleado o el turno.'
+      );
+      return;
+    }
+
+    try {
+      // Obtener las sedes permitidas para el usuario
+      const sedesResponse = await fetch(
+        'https://crm-rrhh-backend.onrender.com/api/sedes',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!sedesResponse.ok) {
+        throw new Error(
+          'No se pudieron consultar las sedes.'
+        );
+      }
+
+      const sedes = await sedesResponse.json();
+
+      const sede = sedes.find(
+        (s: any) => s.nombre === selectedBranch
+      );
+
+      if (!sede) {
+        throw new Error(
+          `No se encontró la sede ${selectedBranch}.`
+        );
+      }
+
+      const assignmentsToCreate: {
+        day: number;
+        fecha: string;
+      }[] = [];
+
+      for (
+        let day = bulkAssignment.startDay;
+        day <= bulkAssignment.endDay;
+        day++
+      ) {
+        const alreadyExists = assignments.some(
+          (a) =>
+            a.day === day &&
+            a.month === selectedMonth &&
+            a.year === selectedYear &&
+            a.branch === selectedBranch &&
+            a.employee === bulkAssignment.employee
+        );
+
+        if (!alreadyExists) {
+          const fecha =
+            `${selectedYear}-${String(
+              selectedMonth + 1
+            ).padStart(2, '0')}-${String(day).padStart(
+              2,
+              '0'
+            )}`;
+
+          assignmentsToCreate.push({
+            day,
+            fecha,
+          });
+        }
+      }
+
+      if (assignmentsToCreate.length === 0) {
+        alert(
+          'El empleado ya tiene turnos asignados en todos los días seleccionados.'
+        );
+        return;
+      }
+
+      const createdAssignments: Assignment[] = [];
+
+      for (const item of assignmentsToCreate) {
+        const response = await fetch(
+          'https://crm-rrhh-backend.onrender.com/api/asignaciones',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              empleado_id: employee.id,
+              sede_id: sede.id,
+              fecha: item.fecha,
+              turno_id: turno.id,
+            }),
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.mensaje ||
+              data.error ||
+              `No se pudo guardar el día ${item.day}.`
+          );
+        }
+
+        createdAssignments.push({
+          id: data.id,
+          day: item.day,
+          month: selectedMonth,
+          year: selectedYear,
+          branch: selectedBranch,
+          employee: bulkAssignment.employee,
+          shift: bulkAssignment.shift,
+        });
+      }
+
+      setAssignments((prev) => [
+        ...prev,
+        ...createdAssignments,
+      ]);
+
+      alert(
+        `Se guardaron ${createdAssignments.length} turno(s) correctamente.`
+      );
+
+    } catch (error: any) {
+      console.error(
+        'Error al guardar asignación masiva:',
+        error
+      );
+
+      alert(
+        error.message ||
+          'No se pudieron guardar los turnos.'
+      );
+    }
+  };
+
   // =========================================================
   // EXPORTAR PDF SEDE ACTUAL
   // =========================================================
@@ -990,7 +993,8 @@ const createQuickAssignment = async () => {
                 pdf.text(
                   d,
                   hx +
-                    cellW / 2,
+                    cellW /
+                      2,
                   y + 5,
                   {
                     align:
@@ -1224,165 +1228,300 @@ const createQuickAssignment = async () => {
   // =========================================================
   // GUARDAR EDICIÓN
   // =========================================================
-const saveEditedAssignment = async () => {
-  if (!editingAssignment) return
 
-  const employee = employees.find(
-    (e) => e.name === editingAssignment.employee
-  )
+  const saveEditedAssignment = async () => {
+    if (!editingAssignment) return
 
-  const turno = shiftTypes.find(
-    (t) => t.name === editingAssignment.shift
-  )
-
-  if (!employee || !turno) {
-    alert('No se pudo identificar el empleado o el turno.')
-    return
-  }
-
-  try {
-    const sedesResponse = await fetch(
-      'https://crm-rrhh-backend.onrender.com/api/sedes',
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
+    const employee = employees.find(
+      (e) => e.name === editingAssignment.employee
     )
 
-    if (!sedesResponse.ok) {
-      throw new Error('No se pudieron consultar las sedes.')
+    const turno = shiftTypes.find(
+      (t) => t.name === editingAssignment.shift
+    )
+
+    if (!employee || !turno) {
+      alert('No se pudo identificar el empleado o el turno.')
+      return
     }
 
-    const sedes = await sedesResponse.json()
-
-    const sede = sedes.find(
-      (s: any) => s.nombre === editingAssignment.branch
-    )
-
-    if (!sede) {
-      throw new Error(
-        `No se encontró la sede ${editingAssignment.branch}.`
+    try {
+      const sedesResponse = await fetch(
+        'https://crm-rrhh-backend.onrender.com/api/sedes',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       )
-    }
 
-    const fecha =
-      `${editingAssignment.year}-${String(
-        editingAssignment.month + 1
-      ).padStart(2, '0')}-${String(
-        editingAssignment.day
-      ).padStart(2, '0')}`
-
-    const response = await fetch(
-      `https://crm-rrhh-backend.onrender.com/api/asignaciones/${editingAssignment.id}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          empleado_id: employee.id,
-          sede_id: sede.id,
-          fecha,
-          turno_id: turno.id,
-        }),
+      if (!sedesResponse.ok) {
+        throw new Error('No se pudieron consultar las sedes.')
       }
-    )
 
-    const data = await response.json()
+      const sedes = await sedesResponse.json()
 
-    if (!response.ok) {
-      throw new Error(
-        data.mensaje ||
-          data.error ||
+      const sede = sedes.find(
+        (s: any) => s.nombre === editingAssignment.branch
+      )
+
+      if (!sede) {
+        throw new Error(
+          `No se encontró la sede ${editingAssignment.branch}.`
+        )
+      }
+
+      const fecha =
+        `${editingAssignment.year}-${String(
+          editingAssignment.month + 1
+        ).padStart(2, '0')}-${String(
+          editingAssignment.day
+        ).padStart(2, '0')}`
+
+      const response = await fetch(
+        `https://crm-rrhh-backend.onrender.com/api/asignaciones/${editingAssignment.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            empleado_id: employee.id,
+            sede_id: sede.id,
+            fecha,
+            turno_id: turno.id,
+          }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.mensaje ||
+            data.error ||
+            'No se pudo actualizar el turno.'
+        )
+      }
+
+      setAssignments((prev) =>
+        prev.map((assignment) =>
+          assignment.id === editingAssignment.id
+            ? editingAssignment
+            : assignment
+        )
+      )
+
+      setEditingAssignment(null)
+
+      alert('Turno actualizado correctamente.')
+    } catch (error: any) {
+      console.error(
+        'Error al actualizar asignación:',
+        error
+      )
+
+      alert(
+        error.message ||
           'No se pudo actualizar el turno.'
       )
     }
-
-    setAssignments((prev) =>
-      prev.map((assignment) =>
-        assignment.id === editingAssignment.id
-          ? editingAssignment
-          : assignment
-      )
-    )
-
-    setEditingAssignment(null)
-
-    alert('Turno actualizado correctamente.')
-  } catch (error: any) {
-    console.error(
-      'Error al actualizar asignación:',
-      error
-    )
-
-    alert(
-      error.message ||
-        'No se pudo actualizar el turno.'
-    )
   }
-}
-  
+
+  // =========================================================
+  // ELIMINAR TURNOS DE UN RANGO
+  // =========================================================
+
+  const deleteAssignmentRange = async () => {
+    if (!editingAssignment) return
+
+    if (
+      rangeStart < 1 ||
+      rangeEnd > daysInMonth ||
+      rangeStart > rangeEnd
+    ) {
+      alert('El rango de días no es válido.')
+      return
+    }
+
+    const confirmed = window.confirm(
+      `¿Estás seguro de eliminar todos los turnos de ${editingEmployee} desde el día ${rangeStart} hasta el día ${rangeEnd} en ${editingAssignment.branch}?`
+    )
+
+    if (!confirmed) return
+
+    try {
+      const sedesResponse = await fetch(
+        'https://crm-rrhh-backend.onrender.com/api/sedes',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      if (!sedesResponse.ok) {
+        throw new Error(
+          'No se pudieron consultar las sedes.'
+        )
+      }
+
+      const sedes = await sedesResponse.json()
+
+      const sede = sedes.find(
+        (s: any) =>
+          s.nombre === editingAssignment.branch
+      )
+
+      if (!sede) {
+        throw new Error(
+          `No se encontró la sede ${editingAssignment.branch}.`
+        )
+      }
+
+      const employee = employees.find(
+        (e) => e.name === editingEmployee
+      )
+
+      if (!employee) {
+        throw new Error(
+          'No se pudo identificar el empleado.'
+        )
+      }
+
+      const fechaInicio =
+        `${editingAssignment.year}-${String(
+          editingAssignment.month + 1
+        ).padStart(2, '0')}-${String(
+          rangeStart
+        ).padStart(2, '0')}`
+
+      const fechaFin =
+        `${editingAssignment.year}-${String(
+          editingAssignment.month + 1
+        ).padStart(2, '0')}-${String(
+          rangeEnd
+        ).padStart(2, '0')}`
+
+      const response = await fetch(
+        'https://crm-rrhh-backend.onrender.com/api/asignaciones/rango',
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            empleado_id: employee.id,
+            sede_id: sede.id,
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin,
+          }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.mensaje ||
+            data.error ||
+            'No se pudieron eliminar los turnos.'
+        )
+      }
+
+      const idsEliminados: number[] =
+        data.ids || []
+
+      setAssignments((prev) =>
+        prev.filter(
+          (assignment) =>
+            !idsEliminados.includes(
+              assignment.id
+            )
+        )
+      )
+
+      setEditingAssignment(null)
+
+      alert(
+        data.mensaje ||
+          'Los turnos del rango fueron eliminados correctamente.'
+      )
+    } catch (error: any) {
+      console.error(
+        'Error al eliminar rango:',
+        error
+      )
+
+      alert(
+        error.message ||
+          'No se pudieron eliminar los turnos del rango.'
+      )
+    }
+  }
+
   // =========================================================
   // ELIMINAR TURNO
   // =========================================================
 
   const deleteAssignment = async () => {
-  if (!editingAssignment) return
+    if (!editingAssignment) return
 
-  const confirmed = window.confirm(
-    '¿Estás seguro de que deseas eliminar este turno?'
-  )
-
-  if (!confirmed) return
-
-  try {
-    const response = await fetch(
-      `https://crm-rrhh-backend.onrender.com/api/asignaciones/${editingAssignment.id}`,
-      {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
+    const confirmed = window.confirm(
+      '¿Estás seguro de que deseas eliminar este turno?'
     )
 
-    const data = await response.json()
+    if (!confirmed) return
 
-    if (!response.ok) {
-      throw new Error(
-        data.mensaje ||
-          data.error ||
+    try {
+      const response = await fetch(
+        `https://crm-rrhh-backend.onrender.com/api/asignaciones/${editingAssignment.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.mensaje ||
+            data.error ||
+            'No se pudo eliminar el turno.'
+        )
+      }
+
+      setAssignments((prev) =>
+        prev.filter(
+          (assignment) =>
+            assignment.id !==
+            editingAssignment.id
+        )
+      )
+
+      setEditingAssignment(null)
+
+      alert(
+        'Turno eliminado correctamente.'
+      )
+    } catch (error: any) {
+      console.error(
+        'Error al eliminar asignación:',
+        error
+      )
+
+      alert(
+        error.message ||
           'No se pudo eliminar el turno.'
       )
     }
-
-    setAssignments((prev) =>
-      prev.filter(
-        (assignment) =>
-          assignment.id !==
-          editingAssignment.id
-      )
-    )
-
-    setEditingAssignment(null)
-
-    alert(
-      'Turno eliminado correctamente.'
-    )
-  } catch (error: any) {
-    console.error(
-      'Error al eliminar asignación:',
-      error
-    )
-
-    alert(
-      error.message ||
-        'No se pudo eliminar el turno.'
-    )
   }
-}
+
   // =========================================================
   // EXPORTAR TODAS LAS SEDES A EXCEL
   // =========================================================
@@ -3100,61 +3239,75 @@ const saveEditedAssignment = async () => {
 
                 {editMode ===
                   'range' && (
-                  <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="space-y-3 pt-2">
 
-                    <div>
+                    <div className="grid grid-cols-2 gap-3">
 
-                      <label className="text-xs text-slate-500">
-                        Desde
-                      </label>
+                      <div>
 
-                      <input
-                        type="number"
-                        min={1}
-                        max={
-                          daysInMonth
-                        }
-                        value={
-                          rangeStart
-                        }
-                        onChange={(e) =>
-                          setRangeStart(
-                            Number(
-                              e.target.value
+                        <label className="text-xs text-slate-500">
+                          Desde
+                        </label>
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={
+                            daysInMonth
+                          }
+                          value={
+                            rangeStart
+                          }
+                          onChange={(e) =>
+                            setRangeStart(
+                              Number(
+                                e.target.value
+                              )
                             )
-                          )
-                        }
-                        className="w-full mt-1 border border-slate-300 rounded-xl px-3 py-2"
-                      />
+                          }
+                          className="w-full mt-1 border border-slate-300 rounded-xl px-3 py-2"
+                        />
+
+                      </div>
+
+                      <div>
+
+                        <label className="text-xs text-slate-500">
+                          Hasta
+                        </label>
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={
+                            daysInMonth
+                          }
+                          value={
+                            rangeEnd
+                          }
+                          onChange={(e) =>
+                            setRangeEnd(
+                              Number(
+                                e.target.value
+                              )
+                            )
+                          }
+                          className="w-full mt-1 border border-slate-300 rounded-xl px-3 py-2"
+                        />
+
+                      </div>
 
                     </div>
 
-                    <div>
-
-                      <label className="text-xs text-slate-500">
-                        Hasta
-                      </label>
-
-                      <input
-                        type="number"
-                        min={1}
-                        max={
-                          daysInMonth
-                        }
-                        value={
-                          rangeEnd
-                        }
-                        onChange={(e) =>
-                          setRangeEnd(
-                            Number(
-                              e.target.value
-                            )
-                          )
-                        }
-                        className="w-full mt-1 border border-slate-300 rounded-xl px-3 py-2"
-                      />
-
-                    </div>
+                    <button
+                      type="button"
+                      onClick={
+                        deleteAssignmentRange
+                      }
+                      className="w-full py-3 rounded-2xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-semibold transition"
+                    >
+                      🗑️ Eliminar turnos de este rango
+                    </button>
 
                   </div>
                 )}
