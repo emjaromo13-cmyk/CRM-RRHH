@@ -1224,119 +1224,165 @@ const createQuickAssignment = async () => {
   // =========================================================
   // GUARDAR EDICIÓN
   // =========================================================
+const saveEditedAssignment = async () => {
+  if (!editingAssignment) return
 
-  const saveEditedAssignment =
-    () => {
-      if (readOnly) return;
+  const employee = employees.find(
+    (e) => e.name === editingAssignment.employee
+  )
 
-      if (!editingAssignment) {
-        return;
+  const turno = shiftTypes.find(
+    (t) => t.name === editingAssignment.shift
+  )
+
+  if (!employee || !turno) {
+    alert('No se pudo identificar el empleado o el turno.')
+    return
+  }
+
+  try {
+    const sedesResponse = await fetch(
+      'https://crm-rrhh-backend.onrender.com/api/sedes',
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       }
+    )
 
-      const currentDay =
-        editingAssignment.day;
+    if (!sedesResponse.ok) {
+      throw new Error('No se pudieron consultar las sedes.')
+    }
 
-      setAssignments(
-        assignments.map(
-          (item) => {
-            if (
-              editMode ===
-                'single' &&
-              item.id ===
-                editingAssignment.id
-            ) {
-              return {
-                ...item,
-                employee:
-                  editingEmployee,
-                shift:
-                  editingShift,
-              };
-            }
+    const sedes = await sedesResponse.json()
 
-            if (
-              editMode ===
-                'toEnd' &&
-              item.branch ===
-                editingAssignment.branch &&
-              item.month ===
-                selectedMonth &&
-              item.year ===
-                selectedYear &&
-              item.employee ===
-                editingAssignment.employee &&
-              item.day >=
-                currentDay
-            ) {
-              return {
-                ...item,
-                employee:
-                  editingEmployee,
-                shift:
-                  editingShift,
-              };
-            }
+    const sede = sedes.find(
+      (s: any) => s.nombre === editingAssignment.branch
+    )
 
-            if (
-              editMode ===
-                'range' &&
-              item.branch ===
-                editingAssignment.branch &&
-              item.month ===
-                selectedMonth &&
-              item.year ===
-                selectedYear &&
-              item.employee ===
-                editingAssignment.employee &&
-              item.day >=
-                rangeStart &&
-              item.day <=
-                rangeEnd
-            ) {
-              return {
-                ...item,
-                employee:
-                  editingEmployee,
-                shift:
-                  editingShift,
-              };
-            }
+    if (!sede) {
+      throw new Error(
+        `No se encontró la sede ${editingAssignment.branch}.`
+      )
+    }
 
-            return item;
-          }
-        )
-      );
+    const fecha =
+      `${editingAssignment.year}-${String(
+        editingAssignment.month + 1
+      ).padStart(2, '0')}-${String(
+        editingAssignment.day
+      ).padStart(2, '0')}`
 
-      setEditingAssignment(
-        null
-      );
-    };
+    const response = await fetch(
+      `https://crm-rrhh-backend.onrender.com/api/asignaciones/${editingAssignment.id}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          empleado_id: employee.id,
+          sede_id: sede.id,
+          fecha,
+          turno_id: turno.id,
+        }),
+      }
+    )
 
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(
+        data.mensaje ||
+          data.error ||
+          'No se pudo actualizar el turno.'
+      )
+    }
+
+    setAssignments((prev) =>
+      prev.map((assignment) =>
+        assignment.id === editingAssignment.id
+          ? editingAssignment
+          : assignment
+      )
+    )
+
+    setEditingAssignment(null)
+
+    alert('Turno actualizado correctamente.')
+  } catch (error: any) {
+    console.error(
+      'Error al actualizar asignación:',
+      error
+    )
+
+    alert(
+      error.message ||
+        'No se pudo actualizar el turno.'
+    )
+  }
+}
+  
   // =========================================================
   // ELIMINAR TURNO
   // =========================================================
 
-  const deleteAssignment =
-    () => {
-      if (readOnly) return;
+  const deleteAssignment = async () => {
+  if (!editingAssignment) return
 
-      if (!editingAssignment) {
-        return;
+  const confirmed = window.confirm(
+    '¿Estás seguro de que deseas eliminar este turno?'
+  )
+
+  if (!confirmed) return
+
+  try {
+    const response = await fetch(
+      `https://crm-rrhh-backend.onrender.com/api/asignaciones/${editingAssignment.id}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       }
+    )
 
-      setAssignments(
-        assignments.filter(
-          (a) =>
-            a.id !==
-            editingAssignment.id
-        )
-      );
+    const data = await response.json()
 
-      setEditingAssignment(
-        null
-      );
-    };
+    if (!response.ok) {
+      throw new Error(
+        data.mensaje ||
+          data.error ||
+          'No se pudo eliminar el turno.'
+      )
+    }
 
+    setAssignments((prev) =>
+      prev.filter(
+        (assignment) =>
+          assignment.id !==
+          editingAssignment.id
+      )
+    )
+
+    setEditingAssignment(null)
+
+    alert(
+      'Turno eliminado correctamente.'
+    )
+  } catch (error: any) {
+    console.error(
+      'Error al eliminar asignación:',
+      error
+    )
+
+    alert(
+      error.message ||
+        'No se pudo eliminar el turno.'
+    )
+  }
+}
   // =========================================================
   // EXPORTAR TODAS LAS SEDES A EXCEL
   // =========================================================

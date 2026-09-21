@@ -354,46 +354,8 @@ export default function App() {
   CARGAR ASIGNACIONES DE PRODUCCIÓN
   ========================================================
   */
-
-  const [assignments, setAssignments] =
-    useState<Assignment[]>(() => {
-      const saved =
-        localStorage.getItem(
-          'assignments'
-        )
-
-      if (saved) {
-        try {
-          const parsed =
-            JSON.parse(saved)
-
-          return parsed.map(
-            (assignment: any) => ({
-              ...assignment,
-
-              month:
-                typeof assignment.month ===
-                'number'
-                  ? assignment.month
-                  : 7,
-
-              year:
-                typeof assignment.year ===
-                'number'
-                  ? assignment.year
-                  : 2026,
-            })
-          )
-        } catch (error) {
-          console.error(
-            'Error leyendo asignaciones:',
-            error
-          )
-        }
-      }
-
-      return []
-    })
+const [assignments, setAssignments] =
+  useState<Assignment[]>([])
 
   useEffect(() => {
     const loadProductionAssignments =
