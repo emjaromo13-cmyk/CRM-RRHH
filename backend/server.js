@@ -503,6 +503,270 @@ app.post(
   }
 )
 // =====================================================
+// EDITAR ASISTENCIA
+// =====================================================
+
+app.put(
+  '/api/asistencias/:id',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+
+      const {
+        real_start,
+        late_minutes,
+        discount,
+        paid_hours,
+        hora_entrada,
+        hora_salida,
+        estado,
+        observacion,
+      } = req.body
+
+      const asistenciaActual = await pool.query(
+        `
+        SELECT sede_id
+        FROM asistencias
+        WHERE id = $1
+        `,
+        [id]
+      )
+
+      if (asistenciaActual.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Asistencia no encontrada',
+        })
+      }
+
+      const sedeId = asistenciaActual.rows[0].sede_id
+
+      if (
+        req.usuario.rol !== 'ADMIN' &&
+        req.usuario.rol !== 'JEFE'
+      ) {
+        const sedesPermitidas =
+          sedesPorRol[req.usuario.rol]
+
+        if (
+          !sedesPermitidas ||
+          !sedesPermitidas.includes(Number(sedeId))
+        ) {
+          return res.status(403).json({
+            mensaje:
+              'No tienes permiso para modificar esta asistencia',
+          })
+        }
+      }
+
+      const result = await pool.query(
+        `
+        UPDATE asistencias
+        SET
+          hora_entrada = COALESCE($1, hora_entrada),
+          hora_salida = $2,
+          estado = COALESCE($3, estado),
+          observacion = $4,
+          real_start = COALESCE($5, real_start),
+          late_minutes = COALESCE($6, late_minutes),
+          discount = COALESCE($7, discount),
+          paid_hours = COALESCE($8, paid_hours)
+        WHERE id = $9
+        RETURNING
+          id,
+          empleado_id,
+          sede_id,
+          fecha,
+          hora_entrada,
+          hora_salida,
+          estado,
+          observacion,
+          scheduled_start,
+          real_start,
+          late_minutes,
+          discount,
+          paid_hours
+        `,
+        [
+          hora_entrada ?? real_start,
+          hora_salida ?? null,
+          estado,
+          observacion ?? null,
+          real_start,
+          late_minutes,
+          discount,
+          paid_hours,
+          id,
+        ]
+      )
+
+      res.json(result.rows[0])
+    } catch (error) {
+      console.error('Error al editar asistencia:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al editar asistencia',
+        error: error.message,
+      })
+    }
+  }
+)
+// =====================================================
+// ELIMINAR ASISTENCIA
+// =====================================================
+
+app.delete(
+  '/api/asistencias/:id',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+
+      const asistenciaActual = await pool.query(
+        `
+        SELECT sede_id
+        FROM asistencias
+        WHERE id = $1
+        `,
+        [id]
+      )
+
+      if (asistenciaActual.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Asistencia no encontrada',
+        })
+      }
+
+      const sedeId = asistenciaActual.rows[0].sede_id
+
+      if (
+        req.usuario.rol !== 'ADMIN' &&
+        req.usuario.rol !== 'JEFE'
+      ) {
+        const sedesPermitidas =
+          sedesPorRol[req.usuario.rol]
+
+        if (
+          !sedesPermitidas ||
+          !sedesPermitidas.includes(Number(sedeId))
+        ) {
+          return res.status(403).json({
+            mensaje:
+              'No tienes permiso para eliminar esta asistencia',
+          })
+        }
+      }
+
+      await pool.query(
+        `
+        DELETE FROM asistencias
+        WHERE id = $1
+        `,
+        [id]
+      )
+
+      res.json({
+        mensaje: 'Asistencia eliminada correctamente',
+      })
+    } catch (error) {
+      console.error('Error al eliminar asistencia:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al eliminar asistencia',
+        error: error.message,
+      })
+    }
+  }
+)
+// =====================================================
+// ELIMINAR ASISTENCIA
+// =====================================================
+
+app.delete(
+  '/api/asistencias/:id',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+
+      const asistenciaActual = await pool.query(
+        `
+        SELECT sede_id
+        FROM asistencias
+        WHERE id = $1
+        `,
+        [id]
+      )
+
+      if (asistenciaActual.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Asistencia no encontrada',
+        })
+      }
+
+      const sedeId = asistenciaActual.rows[0].sede_id
+
+      if (
+        req.usuario.rol !== 'ADMIN' &&
+        req.usuario.rol !== 'JEFE'
+      ) {
+        const sedesPermitidas =
+          sedesPorRol[req.usuario.rol]
+
+        if (
+          !sedesPermitidas ||
+          !sedesPermitidas.includes(Number(sedeId))
+        ) {
+          return res.status(403).json({
+            mensaje:
+              'No tienes permiso para eliminar esta asistencia',
+          })
+        }
+      }
+
+      await pool.query(
+        `
+        DELETE FROM asistencias
+        WHERE id = $1
+        `,
+        [id]
+      )
+
+      res.json({
+        mensaje: 'Asistencia eliminada correctamente',
+      })
+    } catch (error) {
+      console.error('Error al eliminar asistencia:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al eliminar asistencia',
+        error: error.message,
+      })
+    }
+  }
+)
+// =====================================================
 // OBTENER SEDES (FILTRADAS POR LÍDER)
 // =====================================================
 
