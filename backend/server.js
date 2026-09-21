@@ -409,7 +409,99 @@ app.get(
     }
   }
 )
+// =====================================================
+// CREAR ASISTENCIA
+// =====================================================
 
+app.post(
+  '/api/asistencias',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  verificarSede,
+  async (req, res) => {
+    try {
+      const {
+        empleado_id,
+        sede_id,
+        fecha,
+        scheduled_start,
+        real_start,
+        late_minutes,
+        discount,
+        paid_hours,
+        hora_entrada,
+        hora_salida,
+        estado,
+        observacion,
+      } = req.body
+
+      const result = await pool.query(
+        `
+        INSERT INTO asistencias
+          (
+            empleado_id,
+            sede_id,
+            fecha,
+            hora_entrada,
+            hora_salida,
+            estado,
+            observacion,
+            scheduled_start,
+            real_start,
+            late_minutes,
+            discount,
+            paid_hours
+          )
+        VALUES
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING
+          id,
+          empleado_id,
+          sede_id,
+          fecha,
+          hora_entrada,
+          hora_salida,
+          estado,
+          observacion,
+          scheduled_start,
+          real_start,
+          late_minutes,
+          discount,
+          paid_hours
+        `,
+        [
+          empleado_id,
+          sede_id,
+          fecha,
+          hora_entrada ?? real_start,
+          hora_salida ?? null,
+          estado || 'Registrada',
+          observacion ?? null,
+          scheduled_start,
+          real_start,
+          late_minutes ?? 0,
+          discount ?? false,
+          paid_hours ?? 0,
+        ]
+      )
+
+      res.status(201).json(result.rows[0])
+    } catch (error) {
+      console.error('Error al crear asistencia:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al crear asistencia',
+        error: error.message,
+      })
+    }
+  }
+)
 // =====================================================
 // OBTENER SEDES (FILTRADAS POR LÍDER)
 // =====================================================
