@@ -1228,49 +1228,88 @@ export default function Calendar({
   // =========================================================
   // GUARDAR EDICIÓN
   // =========================================================
+const saveEditedAssignment = async () => {
+  if (!editingAssignment) return
 
-  const saveEditedAssignment = async () => {
-    if (!editingAssignment) return
+  const employee = employees.find(
+    (e) => e.name === editingEmployee
+  )
 
-    const employee = employees.find(
-      (e) => e.name === editingAssignment.employee
+  const turno = shiftTypes.find(
+    (t) => t.name === editingShift
+  )
+
+  if (!employee || !turno) {
+    alert(
+      'No se pudo identificar el empleado o el turno.'
+    )
+    return
+  }
+
+  // =========================================================
+  // DETERMINAR RANGO SEGÚN LA OPCIÓN SELECCIONADA
+  // =========================================================
+
+  let startDay = editingAssignment.day
+  let endDay = editingAssignment.day
+
+  if (editMode === 'toEnd') {
+    startDay = editingAssignment.day
+    endDay = daysInMonth
+  }
+
+  if (editMode === 'range') {
+    startDay = rangeStart
+    endDay = rangeEnd
+  }
+
+  if (
+    startDay < 1 ||
+    endDay > daysInMonth ||
+    startDay > endDay
+  ) {
+    alert('El rango de días no es válido.')
+    return
+  }
+
+  try {
+    // =======================================================
+    // OBTENER SEDE
+    // =======================================================
+
+    const sedesResponse = await fetch(
+      'https://crm-rrhh-backend.onrender.com/api/sedes',
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
     )
 
-    const turno = shiftTypes.find(
-      (t) => t.name === editingAssignment.shift
-    )
-
-    if (!employee || !turno) {
-      alert('No se pudo identificar el empleado o el turno.')
-      return
+    if (!sedesResponse.ok) {
+      throw new Error(
+        'No se pudieron consultar las sedes.'
+      )
     }
 
-    try {
-      const sedesResponse = await fetch(
-        'https://crm-rrhh-backend.onrender.com/api/sedes',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+    const sedes = await sedesResponse.json()
+
+    const sede = sedes.find(
+      (s: any) =>
+        s.nombre === editingAssignment.branch
+    )
+
+    if (!sede) {
+      throw new Error(
+        `No se encontró la sede ${editingAssignment.branch}.`
       )
+    }
 
-      if (!sedesResponse.ok) {
-        throw new Error('No se pudieron consultar las sedes.')
-      }
+    // =======================================================
+    // SOLO ESTE DÍA
+    // =======================================================
 
-      const sedes = await sedesResponse.json()
-
-      const sede = sedes.find(
-        (s: any) => s.nombre === editingAssignment.branch
-      )
-
-      if (!sede) {
-        throw new Error(
-          `No se encontró la sede ${editingAssignment.branch}.`
-        )
-      }
-
+    if (editMode === 'single') {
       const fecha =
         `${editingAssignment.year}-${String(
           editingAssignment.month + 1
@@ -1308,26 +1347,143 @@ export default function Calendar({
       setAssignments((prev) =>
         prev.map((assignment) =>
           assignment.id === editingAssignment.id
-            ? editingAssignment
+            ? {
+                ...assignment,
+                employee: editingEmployee,
+                shift: editingShift,
+              }
             : assignment
         )
       )
 
       setEditingAssignment(null)
 
-      alert('Turno actualizado correctamente.')
-    } catch (error: any) {
-      console.error(
-        'Error al actualizar asignación:',
-        error
+      alert(
+        'Turno actualizado correctamente.'
       )
 
+      return
+    }
+
+    // =======================================================
+    // EDICIÓN HASTA FIN DE MES / RANGO
+    // =======================================================
+
+    // Se toman los turnos EXISTENTES del mismo empleado
+    // y de la misma sede dentro del rango seleccionado.
+
+    const assignmentsToUpdate =
+      assignments.filter(
+        (assignment) =>
+          assignment.branch ===
+            editingAssignment.branch &&
+          assignment.year ===
+            editingAssignment.year &&
+          assignment.month ===
+            editingAssignment.month &&
+          assignment.employee ===
+            editingAssignment.employee &&
+          assignment.day >= startDay &&
+          assignment.day <= endDay
+      )
+
+    if (assignmentsToUpdate.length === 0) {
       alert(
-        error.message ||
-          'No se pudo actualizar el turno.'
+        'No hay turnos existentes dentro del rango seleccionado para modificar.'
+      )
+      return
+    }
+
+    const updatedIds: number[] = []
+
+    // =======================================================
+    // ACTUALIZAR UNO POR UNO
+    // =======================================================
+
+    for (const assignment of assignmentsToUpdate) {
+      const fecha =
+        `${assignment.year}-${String(
+          assignment.month + 1
+        ).padStart(2, '0')}-${String(
+          assignment.day
+        ).padStart(2, '0')}`
+
+      const response = await fetch(
+        `https://crm-rrhh-backend.onrender.com/api/asignaciones/${assignment.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            empleado_id: employee.id,
+            sede_id: sede.id,
+            fecha,
+            turno_id: turno.id,
+          }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.mensaje ||
+            data.error ||
+            `No se pudo actualizar el día ${assignment.day}.`
+        )
+      }
+
+      updatedIds.push(assignment.id)
+    }
+
+    // =======================================================
+    // ACTUALIZAR CALENDARIO VISUAL
+    // =======================================================
+
+    setAssignments((prev) =>
+      prev.map((assignment) => {
+        if (
+          updatedIds.includes(
+            assignment.id
+          )
+        ) {
+          return {
+            ...assignment,
+            employee: editingEmployee,
+            shift: editingShift,
+          }
+        }
+
+        return assignment
+      })
+    )
+
+    setEditingAssignment(null)
+
+    if (editMode === 'toEnd') {
+      alert(
+        `Se actualizaron ${updatedIds.length} turno(s) desde el día ${startDay} hasta el final del mes.`
+      )
+    } else {
+      alert(
+        `Se actualizaron ${updatedIds.length} turno(s) del día ${startDay} al día ${endDay}.`
       )
     }
+
+  } catch (error: any) {
+    console.error(
+      'Error al actualizar asignación:',
+      error
+    )
+
+    alert(
+      error.message ||
+        'No se pudieron actualizar los turnos.'
+    )
   }
+}
 
   // =========================================================
   // ELIMINAR TURNOS DE UN RANGO
