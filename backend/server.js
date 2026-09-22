@@ -391,7 +391,158 @@ app.get(
     }
   }
 )
+// =====================================================
+// CREAR TIPO DE TURNO
+// =====================================================
 
+app.post(
+  '/api/tipos-turno',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const {
+        nombre,
+        hora_inicio,
+        hora_fin,
+      } = req.body
+
+      if (!nombre) {
+        return res.status(400).json({
+          mensaje: 'El nombre del turno es obligatorio',
+        })
+      }
+
+      const result = await pool.query(
+        `
+        INSERT INTO tipos_turno
+          (nombre, hora_inicio, hora_fin)
+        VALUES
+          ($1, $2, $3)
+        RETURNING
+          id,
+          nombre,
+          hora_inicio,
+          hora_fin
+        `,
+        [
+          nombre,
+          hora_inicio || null,
+          hora_fin || null,
+        ]
+      )
+
+      res.status(201).json(result.rows[0])
+    } catch (error) {
+      console.error('Error al crear tipo de turno:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al crear tipo de turno',
+        error: error.message,
+      })
+    }
+  }
+)
+
+// =====================================================
+// EDITAR TIPO DE TURNO
+// =====================================================
+
+app.put(
+  '/api/tipos-turno/:id',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+
+      const {
+        nombre,
+        hora_inicio,
+        hora_fin,
+      } = req.body
+
+      const result = await pool.query(
+        `
+        UPDATE tipos_turno
+        SET
+          nombre = $1,
+          hora_inicio = $2,
+          hora_fin = $3
+        WHERE id = $4
+        RETURNING
+          id,
+          nombre,
+          hora_inicio,
+          hora_fin
+        `,
+        [
+          nombre,
+          hora_inicio || null,
+          hora_fin || null,
+          id,
+        ]
+      )
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Tipo de turno no encontrado',
+        })
+      }
+
+      res.json(result.rows[0])
+    } catch (error) {
+      console.error('Error al editar tipo de turno:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al editar tipo de turno',
+        error: error.message,
+      })
+    }
+  }
+)
+
+// =====================================================
+// ELIMINAR TIPO DE TURNO
+// =====================================================
+
+app.delete(
+  '/api/tipos-turno/:id',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+
+      const result = await pool.query(
+        `
+        DELETE FROM tipos_turno
+        WHERE id = $1
+        RETURNING id
+        `,
+        [id]
+      )
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Tipo de turno no encontrado',
+        })
+      }
+
+      res.json({
+        mensaje: 'Tipo de turno eliminado correctamente',
+        id: result.rows[0].id,
+      })
+    } catch (error) {
+      console.error('Error al eliminar tipo de turno:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al eliminar tipo de turno',
+        error: error.message,
+      })
+    }
+  }
+)
 // =====================================================
 // OBTENER ASIGNACIONES
 // =====================================================
