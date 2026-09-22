@@ -42,6 +42,10 @@ type AttendanceRecord = {
   discount: boolean
   paidHours: number
 }
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  'https://crm-rrhh-backend.onrender.com'
+).replace(/\/$/, '')
 
 type DashboardProps = {
   employees: Employee[]
@@ -138,55 +142,86 @@ export default function Dashboard({
   // REGISTROS DE ASISTENCIA
   // =========================================================
 
-  const [attendanceRecords, setAttendanceRecords] = useState<
-    AttendanceRecord[]
-  >(() => {
-    try {
-      const saved = localStorage.getItem('attendanceRecords')
-      return saved ? JSON.parse(saved) : []
-    } catch (error) {
-      console.error('Error leyendo attendanceRecords:', error)
-      return []
-    }
-  })
+   const [attendanceRecords, setAttendanceRecords] =
+    useState<AttendanceRecord[]>([])
 
-  // Actualiza automáticamente las asistencias
   useEffect(() => {
-    const updateAttendance = () => {
+    const cargarAsistencias = async () => {
       try {
-        const saved = localStorage.getItem('attendanceRecords')
+        const token = localStorage.getItem('token')
 
-        setAttendanceRecords(
-          saved ? JSON.parse(saved) : []
+        if (!token) {
+          console.error('Sesión no encontrada.')
+          return
+        }
+
+        const response = await fetch(
+          `${API_URL}/api/asistencias`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
         )
+
+        if (!response.ok) {
+          throw new Error(
+            'No se pudieron cargar las asistencias.'
+          )
+        }
+
+        const data = await response.json()
+
+        const mappedRecords: AttendanceRecord[] =
+          data.map((record: any) => ({
+            id: Number(record.id),
+            employee:
+              record.empleado ||
+              record.employee ||
+              '',
+            branch:
+              record.sede ||
+              record.branch ||
+              '',
+            date: String(
+              record.fecha || record.date || ''
+            ).slice(0, 10),
+            scheduledStart:
+              record.hora_programada ||
+              record.scheduledStart ||
+              '',
+            realStart:
+              record.hora_entrada ||
+              record.realStart ||
+              '',
+            lateMinutes: Number(
+              record.minutos_tarde ||
+              record.lateMinutes ||
+              0
+            ),
+            discount:
+              Boolean(
+                record.descuento ??
+                record.discount ??
+                false
+              ),
+            paidHours: Number(
+              record.horas_pagadas ||
+              record.paidHours ||
+              0
+            ),
+          }))
+
+        setAttendanceRecords(mappedRecords)
       } catch (error) {
         console.error(
-          'Error actualizando asistencias:',
+          'Error cargando asistencias:',
           error
         )
       }
     }
 
-    updateAttendance()
-
-    window.addEventListener(
-      'storage',
-      updateAttendance
-    )
-
-    const interval = window.setInterval(
-      updateAttendance,
-      1000
-    )
-
-    return () => {
-      window.removeEventListener(
-        'storage',
-        updateAttendance
-      )
-
-      window.clearInterval(interval)
-    }
+    cargarAsistencias()
   }, [])
 
   // =========================================================

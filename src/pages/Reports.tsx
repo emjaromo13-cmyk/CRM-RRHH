@@ -1,4 +1,8 @@
-import { useMemo, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import * as XLSX from 'xlsx'
 
 type Assignment = {
@@ -32,6 +36,10 @@ type AttendanceRecord = {
   discount: boolean
   paidHours: number
 }
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  'https://crm-rrhh-backend.onrender.com'
+).replace(/\/$/, '')
 
 type ReportsProps = {
   assignments: Assignment[]
@@ -73,9 +81,89 @@ export default function Reports({
   shiftTypes,
 }: ReportsProps) {
 
-  const records: AttendanceRecord[] = JSON.parse(
-    localStorage.getItem('attendanceRecords') || '[]'
-  )
+    const [records, setRecords] =
+    useState<AttendanceRecord[]>([])
+
+  useEffect(() => {
+    const cargarAsistencias = async () => {
+      try {
+        const token = localStorage.getItem('token')
+
+        if (!token) {
+          console.error('Sesión no encontrada.')
+          return
+        }
+
+        const response = await fetch(
+          `${API_URL}/api/asistencias`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        )
+
+        if (!response.ok) {
+          throw new Error(
+            'No se pudieron cargar las asistencias.'
+          )
+        }
+
+        const data = await response.json()
+
+        const mappedRecords: AttendanceRecord[] =
+          data.map((record: any) => ({
+            id: Number(record.id),
+            employee:
+              record.empleado ||
+              record.employee ||
+              '',
+            branch:
+              record.sede ||
+              record.branch ||
+              '',
+            date: String(
+              record.fecha ||
+              record.date ||
+              ''
+            ).slice(0, 10),
+            scheduledStart:
+              record.hora_programada ||
+              record.scheduledStart ||
+              '',
+            realStart:
+              record.hora_entrada ||
+              record.realStart ||
+              '',
+            lateMinutes: Number(
+              record.minutos_tarde ||
+              record.lateMinutes ||
+              0
+            ),
+            discount:
+              Boolean(
+                record.descuento ??
+                record.discount ??
+                false
+              ),
+            paidHours: Number(
+              record.horas_pagadas ||
+              record.paidHours ||
+              0
+            ),
+          }))
+
+        setRecords(mappedRecords)
+      } catch (error) {
+        console.error(
+          'Error cargando asistencias:',
+          error
+        )
+      }
+    }
+
+    cargarAsistencias()
+  }, [])
 
   const [selectedMonth, setSelectedMonth] =
     useState(
