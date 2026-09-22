@@ -246,7 +246,113 @@ app.post(
     }
   }
 )
+// =====================================================
+// EDITAR EMPLEADO
+// =====================================================
 
+app.put(
+  '/api/empleados/:id',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+
+      const {
+        nombre,
+        documento,
+        cargo,
+        username,
+        estado,
+      } = req.body
+
+      const result = await pool.query(
+        `
+        UPDATE empleados
+        SET
+          nombre = $1,
+          documento = $2,
+          cargo = $3,
+          username = $4,
+          estado = $5
+        WHERE id = $6
+        RETURNING
+          id,
+          nombre,
+          documento,
+          cargo,
+          username,
+          estado
+        `,
+        [
+          nombre,
+          documento,
+          cargo,
+          username,
+          estado || 'Activo',
+          id,
+        ]
+      )
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Empleado no encontrado',
+        })
+      }
+
+      res.json(result.rows[0])
+    } catch (error) {
+      console.error('Error al editar empleado:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al editar empleado',
+        error: error.message,
+      })
+    }
+  }
+)
+
+// =====================================================
+// ELIMINAR EMPLEADO
+// =====================================================
+
+app.delete(
+  '/api/empleados/:id',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+
+      const result = await pool.query(
+        `
+        DELETE FROM empleados
+        WHERE id = $1
+        RETURNING id
+        `,
+        [id]
+      )
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Empleado no encontrado',
+        })
+      }
+
+      res.json({
+        mensaje: 'Empleado eliminado correctamente',
+        id: result.rows[0].id,
+      })
+    } catch (error) {
+      console.error('Error al eliminar empleado:', error)
+
+      res.status(500).json({
+        mensaje: 'Error al eliminar empleado',
+        error: error.message,
+      })
+    }
+  }
+)
 // =====================================================
 // OBTENER TIPOS DE TURNO
 // =====================================================
@@ -687,9 +793,6 @@ app.delete(
 
       // =====================================================
       // VERIFICAR FECHA
-      // PostgreSQL devuelve DATE como Date en Node.js,
-      // por lo que convertimos la fecha a YYYY-MM-DD
-      // usando la zona horaria de Colombia.
       // =====================================================
 const fechaSeleccionada = String(fecha).slice(0, 10)
 
