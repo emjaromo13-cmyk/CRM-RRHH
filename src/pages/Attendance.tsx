@@ -221,7 +221,8 @@ export default function Attendance({
     new Date().toISOString().slice(0, 10)
   );
 
-  const [selectedBranch, setSelectedBranch] = useState('Todas');
+  const [selectedBranch, setSelectedBranch] =
+    useState('Todas');
 
   const [selectedEmployee, setSelectedEmployee] =
     useState('Todos');
@@ -230,9 +231,23 @@ export default function Attendance({
      ASISTENCIAS
   ======================================================= */
 
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [records, setRecords] = useState<AttendanceRecord[]>(
+    []
+  );
 
-  const [loadingRecords, setLoadingRecords] = useState(false);
+  const [loadingRecords, setLoadingRecords] =
+    useState(false);
+
+  /* =======================================================
+     SELECCIÓN MASIVA
+  ======================================================= */
+
+  const [selectedRecords, setSelectedRecords] = useState<
+    number[]
+  >([]);
+
+  const [deletingSelected, setDeletingSelected] =
+    useState(false);
 
   /* =======================================================
      CARGAR ASISTENCIAS DESDE EL BACKEND
@@ -255,15 +270,18 @@ export default function Attendance({
           Authorization: `Bearer ${token}`,
         };
 
-        const [attendanceResponse, sedesResponse] =
-          await Promise.all([
-            fetch(`${API_URL}/api/asistencias`, {
-              headers,
-            }),
-            fetch(`${API_URL}/api/sedes`, {
-              headers,
-            }),
-          ]);
+        const [
+          attendanceResponse,
+          sedesResponse,
+        ] = await Promise.all([
+          fetch(`${API_URL}/api/asistencias`, {
+            headers,
+          }),
+
+          fetch(`${API_URL}/api/sedes`, {
+            headers,
+          }),
+        ]);
 
         if (!attendanceResponse.ok) {
           throw new Error(
@@ -361,6 +379,18 @@ export default function Attendance({
   }, [employees]);
 
   /* =========================================================
+     LIMPIAR SELECCIÓN CUANDO CAMBIA EL FILTRO
+  ========================================================= */
+
+  useEffect(() => {
+    setSelectedRecords([]);
+  }, [
+    selectedDate,
+    selectedBranch,
+    selectedEmployee,
+  ]);
+
+  /* =========================================================
      FECHA SELECCIONADA
   ========================================================= */
 
@@ -382,8 +412,12 @@ export default function Attendance({
   const todayAssignments = useMemo(() => {
     return assignments.filter(a => {
       const dayOk = a.day === todayDay;
-      const monthOk = a.month === selectedMonth;
-      const yearOk = a.year === selectedYear;
+
+      const monthOk =
+        a.month === selectedMonth;
+
+      const yearOk =
+        a.year === selectedYear;
 
       const branchOk =
         selectedBranch === 'Todas' ||
@@ -440,7 +474,8 @@ export default function Attendance({
   ========================================================= */
 
   const filteredRecords = records.filter(r => {
-    const dateOk = r.date === selectedDate;
+    const dateOk =
+      r.date === selectedDate;
 
     const branchOk =
       selectedBranch === 'Todas' ||
@@ -458,10 +493,147 @@ export default function Attendance({
   });
 
   /* =========================================================
+     SELECCIÓN DE REGISTROS
+  ========================================================= */
+
+  const allFilteredSelected =
+    filteredRecords.length > 0 &&
+    filteredRecords.every(record =>
+      selectedRecords.includes(record.id)
+    );
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedRecords(prev =>
+        prev.filter(
+          id =>
+            !filteredRecords.some(
+              record => record.id === id
+            )
+        )
+      );
+    } else {
+      setSelectedRecords(prev => [
+        ...prev,
+
+        ...filteredRecords
+          .map(record => record.id)
+          .filter(
+            id => !prev.includes(id)
+          ),
+      ]);
+    }
+  };
+
+  const toggleSelectRecord = (id: number) => {
+    setSelectedRecords(prev =>
+      prev.includes(id)
+        ? prev.filter(
+            recordId => recordId !== id
+          )
+        : [...prev, id]
+    );
+  };
+
+  /* =========================================================
+     ELIMINAR SELECCIONADOS
+  ========================================================= */
+
+  const deleteSelectedRecords = async () => {
+    if (selectedRecords.length === 0) {
+      alert(
+        'Selecciona al menos una asistencia.'
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Eliminar ${selectedRecords.length} registro(s) de asistencia del día ${selectedDate}?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const token =
+        localStorage.getItem('token');
+
+      if (!token) {
+        alert('Sesión no encontrada.');
+        return;
+      }
+
+      setDeletingSelected(true);
+
+      const response = await fetch(
+        `${API_URL}/api/asistencias/eliminar-masivo`,
+        {
+          method: 'DELETE',
+
+          headers: {
+            'Content-Type':
+              'application/json',
+
+            Authorization:
+              `Bearer ${token}`,
+          },
+
+          body: JSON.stringify({
+            ids: selectedRecords,
+            fecha: selectedDate,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.mensaje ||
+            'No se pudieron eliminar las asistencias.'
+        );
+      }
+
+      setRecords(prev =>
+        prev.filter(
+          record =>
+            !selectedRecords.includes(
+              record.id
+            )
+        )
+      );
+
+      setSelectedRecords([]);
+
+      alert(
+        data.mensaje ||
+          'Asistencias eliminadas correctamente.'
+      );
+    } catch (error) {
+      console.error(
+        'Error eliminando asistencias:',
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'No se pudieron eliminar las asistencias.'
+      );
+    } finally {
+      setDeletingSelected(false);
+    }
+  };
+
+  /* =========================================================
      INFORMACIÓN DEL TURNO
   ========================================================= */
 
-  const getShiftInfo = (shift: string) => {
+  const getShiftInfo = (
+    shift: string
+  ) => {
     const turno = shiftTypes.find(
       t =>
         t.name.trim().toLowerCase() ===
@@ -479,13 +651,15 @@ export default function Attendance({
     let hours = 0;
 
     if (turno.start && turno.end) {
-      const [sh, sm] = turno.start
-        .split(':')
-        .map(Number);
+      const [sh, sm] =
+        turno.start
+          .split(':')
+          .map(Number);
 
-      const [eh, em] = turno.end
-        .split(':')
-        .map(Number);
+      const [eh, em] =
+        turno.end
+          .split(':')
+          .map(Number);
 
       const startMin =
         sh * 60 + sm;
@@ -552,13 +726,15 @@ export default function Attendance({
       return 0;
     }
 
-    const [sh, sm] = scheduled
-      .split(':')
-      .map(Number);
+    const [sh, sm] =
+      scheduled
+        .split(':')
+        .map(Number);
 
-    const [rh, rm] = real
-      .split(':')
-      .map(Number);
+    const [rh, rm] =
+      real
+        .split(':')
+        .map(Number);
 
     const scheduledMin =
       sh * 60 + sm;
@@ -603,13 +779,14 @@ export default function Attendance({
          BUSCAR EMPLEADO
       ----------------------------------------------------- */
 
-      const employee = employees.find(
-        emp =>
-          normalizeText(emp.name) ===
-          normalizeText(
-            assignment.employee
-          )
-      );
+      const employee =
+        employees.find(
+          emp =>
+            normalizeText(emp.name) ===
+            normalizeText(
+              assignment.employee
+            )
+        );
 
       if (!employee) {
         alert(
@@ -642,15 +819,16 @@ export default function Attendance({
       const sedes =
         await sedesResponse.json();
 
-      const sede = sedes.find(
-        (sede: any) =>
-          normalizeText(
-            sede.nombre
-          ) ===
-          normalizeText(
-            assignment.branch
-          )
-      );
+      const sede =
+        sedes.find(
+          (sede: any) =>
+            normalizeText(
+              sede.nombre
+            ) ===
+            normalizeText(
+              assignment.branch
+            )
+        );
 
       if (!sede) {
         alert(
@@ -667,9 +845,13 @@ export default function Attendance({
         records.some(
           record =>
             record.date === selectedDate &&
-            Number(record.employeeId) ===
+            Number(
+              record.employeeId
+            ) ===
               Number(employee.id) &&
-            Number(record.branchId) ===
+            Number(
+              record.branchId
+            ) ===
               Number(sede.id)
         );
 
@@ -986,8 +1168,11 @@ export default function Attendance({
 Se necesitan:
 
 Fecha
+
 Hora
+
 Usuario
+
 PC
 
 Columnas encontradas:
@@ -1011,8 +1196,8 @@ ${keys.join(', ')}`
           branch: string;
         };
 
-        const logRecords: LogRecord[] =
-          [];
+        const logRecords:
+          LogRecord[] = [];
 
         rows.forEach(row => {
           const date =
@@ -1074,7 +1259,6 @@ ${keys.join(', ')}`
           alert(
             'No se encontraron registros válidos en el archivo.'
           );
-
           return;
         }
 
@@ -1121,7 +1305,6 @@ ${keys.join(', ')}`
           alert(
             'Sesión no encontrada.'
           );
-
           return;
         }
 
@@ -1204,7 +1387,6 @@ ${keys.join(', ')}`
             unknownUsers.add(
               first.username
             );
-
             return;
           }
 
@@ -1473,7 +1655,6 @@ ${keys.join(', ')}`
               );
 
               failedRecords++;
-
               continue;
             }
 
@@ -1626,7 +1807,6 @@ ${keys.join(', ')}`
       alert(
         'No hay registros para exportar.'
       );
-
       return;
     }
 
@@ -1808,9 +1988,11 @@ ${keys.join(', ')}`
 
   return (
     <div className="space-y-6">
+
       {/* HEADER */}
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
         <div>
           <h2 className="text-3xl font-bold">
             Asistencia
@@ -1822,6 +2004,7 @@ ${keys.join(', ')}`
         </div>
 
         <div className="flex gap-3 items-center">
+
           <input
             type="date"
             value={selectedDate}
@@ -1836,6 +2019,7 @@ ${keys.join(', ')}`
           {/* IMPORTAR */}
 
           <label className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl font-medium shadow-sm flex items-center gap-2 transition-colors cursor-pointer">
+
             Importar Log
 
             <input
@@ -1844,6 +2028,7 @@ ${keys.join(', ')}`
               className="hidden"
               onChange={importLog}
             />
+
           </label>
 
           {/* EXPORTAR */}
@@ -1854,14 +2039,18 @@ ${keys.join(', ')}`
           >
             Excel
           </button>
+
         </div>
       </div>
 
       {/* FILTROS */}
 
       <div className="bg-white rounded-2xl border p-4 shadow-sm">
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
           <div>
+
             <label className="text-sm font-medium text-slate-600 mb-2 block">
               Filtrar por sede
             </label>
@@ -1875,6 +2064,7 @@ ${keys.join(', ')}`
               }
               className="w-full border rounded-xl px-4 py-2 bg-white"
             >
+
               <option value="Todas">
                 Todas
               </option>
@@ -1887,10 +2077,13 @@ ${keys.join(', ')}`
                   {branch}
                 </option>
               ))}
+
             </select>
+
           </div>
 
           <div>
+
             <label className="text-sm font-medium text-slate-600 mb-2 block">
               Filtrar por empleado
             </label>
@@ -1904,6 +2097,7 @@ ${keys.join(', ')}`
               }
               className="w-full border rounded-xl px-4 py-2 bg-white"
             >
+
               <option value="Todos">
                 Todos
               </option>
@@ -1916,19 +2110,25 @@ ${keys.join(', ')}`
                   {emp}
                 </option>
               ))}
+
             </select>
+
           </div>
+
         </div>
+
       </div>
 
       {/* TURNOS PROGRAMADOS */}
 
       <div className="bg-white rounded-2xl border p-5">
+
         <h3 className="text-lg font-bold mb-4">
           Turnos programados
         </h3>
 
         <div className="space-y-4">
+
           {todayAssignments.length === 0 && (
             <p className="text-slate-500">
               No hay turnos programados para esta fecha.
@@ -1953,24 +2153,86 @@ ${keys.join(', ')}`
               />
             );
           })}
+
         </div>
+
       </div>
 
       {/* REGISTROS */}
 
       <div className="bg-white rounded-2xl border overflow-hidden">
-        <div className="p-5 border-b">
-          <h3 className="text-lg font-bold">
-            Registros del día —{' '}
-            {selectedDate} —{' '}
-            {selectedBranch}
-          </h3>
+
+        {/* CABECERA DE REGISTROS */}
+
+        <div className="p-5 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+          <div>
+
+            <h3 className="text-lg font-bold">
+              Registros del día —{' '}
+              {selectedDate} —{' '}
+              {selectedBranch}
+            </h3>
+
+            {selectedRecords.length > 0 && (
+              <p className="text-sm text-slate-500 mt-1">
+                {selectedRecords.length}{' '}
+                registro(s) seleccionado(s)
+              </p>
+            )}
+
+          </div>
+
+          {/* ELIMINAR SELECCIONADOS */}
+
+          {selectedRecords.length > 0 && (
+            <button
+              onClick={
+                deleteSelectedRecords
+              }
+              disabled={
+                deletingSelected
+              }
+              className="bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white px-4 py-2 rounded-xl font-medium shadow-sm transition-colors"
+            >
+              {deletingSelected
+                ? 'Eliminando...'
+                : `Eliminar seleccionados (${selectedRecords.length})`}
+            </button>
+          )}
+
         </div>
 
         <div className="overflow-x-auto">
+
           <table className="w-full text-sm">
+
             <thead className="bg-slate-50 text-slate-600">
+
               <tr>
+
+                {/* SELECCIONAR TODOS */}
+
+                <th className="p-4 w-12 text-center">
+
+                  <input
+                    type="checkbox"
+                    checked={
+                      allFilteredSelected
+                    }
+                    onChange={
+                      toggleSelectAll
+                    }
+                    disabled={
+                      filteredRecords.length ===
+                      0
+                    }
+                    className="h-4 w-4"
+                    title="Seleccionar todos"
+                  />
+
+                </th>
+
                 <th className="text-left p-4">
                   Fecha
                 </th>
@@ -2006,30 +2268,43 @@ ${keys.join(', ')}`
                 <th className="text-left p-4 font-semibold">
                   Acciones
                 </th>
+
               </tr>
+
             </thead>
 
             <tbody className="divide-y">
+
               {loadingRecords ? (
+
                 <tr>
+
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="p-6 text-center text-slate-400"
                   >
                     Cargando asistencias...
                   </td>
+
                 </tr>
+
               ) : filteredRecords.length === 0 ? (
+
                 <tr>
+
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="p-6 text-center text-slate-400"
                   >
                     Aún no se han guardado registros de asistencia hoy.
                   </td>
+
                 </tr>
+
               ) : (
+
                 filteredRecords.map(r => (
+
                   <EditableRow
                     key={r.id}
                     record={r}
@@ -2037,13 +2312,28 @@ ${keys.join(', ')}`
                       setRecords
                     }
                     apiUrl={API_URL}
+                    selected={
+                      selectedRecords.includes(
+                        r.id
+                      )
+                    }
+                    onToggleSelect={
+                      toggleSelectRecord
+                    }
                   />
+
                 ))
+
               )}
+
             </tbody>
+
           </table>
+
         </div>
+
       </div>
+
     </div>
   );
 }
@@ -2075,8 +2365,11 @@ function AttendanceCard({
 
   return (
     <div className="border rounded-2xl p-4 bg-slate-50">
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
         <div>
+
           <div className="font-semibold text-lg">
             {assignment.employee}
           </div>
@@ -2090,10 +2383,13 @@ function AttendanceCard({
             Programado: {start} ·{' '}
             {hours} h
           </div>
+
         </div>
 
         <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+
           <div>
+
             <label className="text-xs text-slate-500 block mb-1">
               Entrada real
             </label>
@@ -2108,9 +2404,11 @@ function AttendanceCard({
               }
               className="border rounded-xl px-3 py-2 bg-white"
             />
+
           </div>
 
           <label className="flex items-center gap-2 text-sm mt-5 md:mt-0">
+
             <input
               type="checkbox"
               checked={discount}
@@ -2122,6 +2420,7 @@ function AttendanceCard({
             />
 
             Descontar
+
           </label>
 
           <button
@@ -2136,8 +2435,11 @@ function AttendanceCard({
           >
             Guardar
           </button>
+
         </div>
+
       </div>
+
     </div>
   );
 }
@@ -2150,6 +2452,8 @@ function EditableRow({
   record,
   setRecords,
   apiUrl,
+  selected,
+  onToggleSelect,
 }: {
   record: AttendanceRecord;
 
@@ -2160,6 +2464,12 @@ function EditableRow({
   >;
 
   apiUrl: string;
+
+  selected: boolean;
+
+  onToggleSelect: (
+    id: number
+  ) => void;
 }) {
   const [realStart, setRealStart] =
     useState(record.realStart);
@@ -2243,7 +2553,6 @@ function EditableRow({
         alert(
           'Sesión no encontrada.'
         );
-
         return;
       }
 
@@ -2251,7 +2560,6 @@ function EditableRow({
         alert(
           'Debes ingresar la hora real.'
         );
-
         return;
       }
 
@@ -2403,7 +2711,6 @@ function EditableRow({
         alert(
           'Sesión no encontrada.'
         );
-
         return;
       }
 
@@ -2460,6 +2767,25 @@ function EditableRow({
 
   return (
     <tr className="hover:bg-slate-50 transition-colors">
+
+      {/* CASILLA DE SELECCIÓN */}
+
+      <td className="p-4 w-12 text-center">
+
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() =>
+            onToggleSelect(
+              record.id
+            )
+          }
+          className="h-4 w-4"
+          title="Seleccionar asistencia"
+        />
+
+      </td>
+
       <td className="p-4">
         {record.date}
       </td>
@@ -2477,6 +2803,7 @@ function EditableRow({
       </td>
 
       <td className="p-4">
+
         <input
           type="time"
           value={realStart}
@@ -2487,21 +2814,29 @@ function EditableRow({
           }
           className="border rounded-lg px-2 py-1 text-sm bg-white"
         />
+
       </td>
 
       <td className="p-4">
+
         {lateMinutes === 0 ? (
+
           <span className="text-green-600 font-medium">
             A tiempo
           </span>
+
         ) : (
+
           <span className="text-red-600 font-medium">
             {lateMinutes} min
           </span>
+
         )}
+
       </td>
 
       <td className="p-4">
+
         <input
           type="checkbox"
           checked={discount}
@@ -2512,6 +2847,7 @@ function EditableRow({
           }
           className="h-4 w-4"
         />
+
       </td>
 
       <td className="p-4 font-semibold">
@@ -2519,7 +2855,9 @@ function EditableRow({
       </td>
 
       <td className="p-4">
+
         <div className="flex gap-2">
+
           <button
             onClick={saveChanges}
             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm"
@@ -2533,8 +2871,11 @@ function EditableRow({
           >
             Eliminar
           </button>
+
         </div>
+
       </td>
+
     </tr>
   );
 }

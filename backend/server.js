@@ -619,6 +619,147 @@ app.put(
   }
 )
 // =====================================================
+// ELIMINAR ASISTENCIAS MASIVAMENTE
+// =====================================================
+
+app.delete(
+  '/api/asistencias/eliminar-masivo',
+  verificarToken,
+  permitirRoles(
+    'ADMIN',
+    'LIDER_ZONA_1',
+    'LIDER_ZONA_2',
+    'LIDER_GIGANTE',
+    'LIDER_ZULUAGA'
+  ),
+  async (req, res) => {
+    try {
+      const { ids, fecha } = req.body
+
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({
+          mensaje:
+            'Debes seleccionar al menos una asistencia',
+        })
+      }
+
+      if (!fecha) {
+        return res.status(400).json({
+          mensaje:
+            'La fecha es obligatoria para eliminar las asistencias',
+        })
+      }
+
+      const idsNumericos = ids
+        .map(Number)
+        .filter(
+          (id) => Number.isInteger(id) && id > 0
+        )
+
+      if (idsNumericos.length === 0) {
+        return res.status(400).json({
+          mensaje: 'Los IDs de las asistencias no son válidos',
+        })
+      }
+
+      // Buscar las asistencias seleccionadas
+      const asistencias = await pool.query(
+        `
+        SELECT
+          id,
+          sede_id,
+          fecha
+        FROM asistencias
+        WHERE id = ANY($1::int[])
+        `,
+        [idsNumericos]
+      )
+
+      // Verificar que todas las asistencias existan
+      if (
+        asistencias.rows.length !==
+        idsNumericos.length
+      ) {
+        return res.status(404).json({
+          mensaje:
+            'Una o más asistencias seleccionadas no fueron encontradas',
+        })
+      }
+
+      // Verificar que todas correspondan al día seleccionado
+      const registrosOtraFecha =
+        asistencias.rows.filter(
+          (asistencia) =>
+            String(asistencia.fecha).slice(0, 10) !==
+            String(fecha).slice(0, 10)
+        )
+
+      if (registrosOtraFecha.length > 0) {
+        return res.status(403).json({
+          mensaje:
+            'Solo puedes eliminar asistencias correspondientes al día seleccionado',
+        })
+      }
+
+      // Verificar permisos por sede para los líderes
+      if (req.usuario.rol !== 'ADMIN') {
+        const sedesPermitidas =
+          sedesPorRol[req.usuario.rol]
+
+        if (!sedesPermitidas) {
+          return res.status(403).json({
+            mensaje: 'Rol sin sedes asignadas',
+          })
+        }
+
+        const tieneSedeNoPermitida =
+          asistencias.some(
+            (asistencia) =>
+              !sedesPermitidas.includes(
+                Number(asistencia.sede_id)
+              )
+          )
+
+        if (tieneSedeNoPermitida) {
+          return res.status(403).json({
+            mensaje:
+              'No tienes permisos para eliminar una o más asistencias seleccionadas',
+          })
+        }
+      }
+
+      // Eliminar todas las asistencias seleccionadas
+      const result = await pool.query(
+        `
+        DELETE FROM asistencias
+        WHERE id = ANY($1::int[])
+        RETURNING id
+        `,
+        [idsNumericos]
+      )
+
+      res.json({
+        mensaje: `Se eliminaron ${result.rows.length} asistencia(s) correctamente.`,
+        eliminadas: result.rows.length,
+        ids: result.rows.map(
+          (asistencia) => asistencia.id
+        ),
+      })
+    } catch (error) {
+      console.error(
+        'Error al eliminar asistencias masivamente:',
+        error
+      )
+
+      res.status(500).json({
+        mensaje:
+          'Error al eliminar las asistencias seleccionadas',
+        error: error.message,
+      })
+    }
+  }
+)
+// =====================================================
 // ELIMINAR ASISTENCIA
 // =====================================================
 
