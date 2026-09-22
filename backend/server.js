@@ -691,35 +691,24 @@ app.delete(
       // por lo que convertimos la fecha a YYYY-MM-DD
       // usando la zona horaria de Colombia.
       // =====================================================
+const fechaSeleccionada = String(fecha).slice(0, 10)
 
-      const fechaSeleccionada = String(fecha).slice(0, 10)
+const registrosOtraFecha = await pool.query(
+  `
+  SELECT id
+  FROM asistencias
+  WHERE id = ANY($1::int[])
+    AND fecha::date <> $2::date
+  `,
+  [idsNumericos, fechaSeleccionada]
+)
 
-      const registrosOtraFecha =
-        asistencias.rows.filter((asistencia) => {
-          const fechaAsistencia = new Date(
-            asistencia.fecha
-          )
-
-          const fechaBD = new Intl.DateTimeFormat(
-            'en-CA',
-            {
-              timeZone: 'America/Bogota',
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-            }
-          ).format(fechaAsistencia)
-
-          return fechaBD !== fechaSeleccionada
-        })
-
-      if (registrosOtraFecha.length > 0) {
-        return res.status(403).json({
-          mensaje:
-            'Solo puedes eliminar asistencias correspondientes al día seleccionado',
-        })
-      }
-
+if (registrosOtraFecha.rows.length > 0) {
+  return res.status(403).json({
+    mensaje:
+      'Solo puedes eliminar asistencias correspondientes al día seleccionado',
+  })
+}
       // =====================================================
       // VERIFICAR PERMISOS POR SEDE
       // =====================================================
