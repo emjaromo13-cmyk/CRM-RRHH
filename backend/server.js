@@ -246,6 +246,7 @@ app.post(
     }
   }
 )
+
 // =====================================================
 // EDITAR EMPLEADO
 // =====================================================
@@ -353,6 +354,7 @@ app.delete(
     }
   }
 )
+
 // =====================================================
 // OBTENER TIPOS DE TURNO
 // =====================================================
@@ -375,7 +377,10 @@ app.get(
           id,
           nombre,
           hora_inicio,
-          hora_fin
+          hora_fin,
+          hora_inicio_2,
+          hora_fin_2,
+          es_partido
         FROM tipos_turno
         ORDER BY id
       `)
@@ -391,6 +396,7 @@ app.get(
     }
   }
 )
+
 // =====================================================
 // CREAR TIPO DE TURNO
 // =====================================================
@@ -405,6 +411,9 @@ app.post(
         nombre,
         hora_inicio,
         hora_fin,
+        hora_inicio_2,
+        hora_fin_2,
+        es_partido,
       } = req.body
 
       if (!nombre) {
@@ -416,19 +425,32 @@ app.post(
       const result = await pool.query(
         `
         INSERT INTO tipos_turno
-          (nombre, hora_inicio, hora_fin)
+          (
+            nombre,
+            hora_inicio,
+            hora_fin,
+            hora_inicio_2,
+            hora_fin_2,
+            es_partido
+          )
         VALUES
-          ($1, $2, $3)
+          ($1, $2, $3, $4, $5, $6)
         RETURNING
           id,
           nombre,
           hora_inicio,
-          hora_fin
+          hora_fin,
+          hora_inicio_2,
+          hora_fin_2,
+          es_partido
         `,
         [
           nombre,
           hora_inicio || null,
           hora_fin || null,
+          hora_inicio_2 || null,
+          hora_fin_2 || null,
+          Boolean(es_partido),
         ]
       )
 
@@ -460,6 +482,9 @@ app.put(
         nombre,
         hora_inicio,
         hora_fin,
+        hora_inicio_2,
+        hora_fin_2,
+        es_partido,
       } = req.body
 
       const result = await pool.query(
@@ -468,18 +493,27 @@ app.put(
         SET
           nombre = $1,
           hora_inicio = $2,
-          hora_fin = $3
-        WHERE id = $4
+          hora_fin = $3,
+          hora_inicio_2 = $4,
+          hora_fin_2 = $5,
+          es_partido = $6
+        WHERE id = $7
         RETURNING
           id,
           nombre,
           hora_inicio,
-          hora_fin
+          hora_fin,
+          hora_inicio_2,
+          hora_fin_2,
+          es_partido
         `,
         [
           nombre,
           hora_inicio || null,
           hora_fin || null,
+          hora_inicio_2 || null,
+          hora_fin_2 || null,
+          Boolean(es_partido),
           id,
         ]
       )
@@ -543,6 +577,7 @@ app.delete(
     }
   }
 )
+
 // =====================================================
 // OBTENER ASIGNACIONES
 // =====================================================
@@ -666,6 +701,7 @@ app.get(
     }
   }
 )
+
 // =====================================================
 // CREAR ASISTENCIA
 // =====================================================
@@ -759,6 +795,7 @@ app.post(
     }
   }
 )
+
 // =====================================================
 // EDITAR ASISTENCIA
 // =====================================================
@@ -875,6 +912,7 @@ app.put(
     }
   }
 )
+
 // =====================================================
 // ELIMINAR ASISTENCIAS MASIVAMENTE
 // =====================================================
@@ -945,24 +983,25 @@ app.delete(
       // =====================================================
       // VERIFICAR FECHA
       // =====================================================
-const fechaSeleccionada = String(fecha).slice(0, 10)
+      const fechaSeleccionada = String(fecha).slice(0, 10)
 
-const registrosOtraFecha = await pool.query(
-  `
-  SELECT id
-  FROM asistencias
-  WHERE id = ANY($1::int[])
-    AND fecha::date <> $2::date
-  `,
-  [idsNumericos, fechaSeleccionada]
-)
+      const registrosOtraFecha = await pool.query(
+        `
+        SELECT id
+        FROM asistencias
+        WHERE id = ANY($1::int[])
+          AND fecha::date <> $2::date
+        `,
+        [idsNumericos, fechaSeleccionada]
+      )
 
-if (registrosOtraFecha.rows.length > 0) {
-  return res.status(403).json({
-    mensaje:
-      'Solo puedes eliminar asistencias correspondientes al día seleccionado',
-  })
-}
+      if (registrosOtraFecha.rows.length > 0) {
+        return res.status(403).json({
+          mensaje:
+            'Solo puedes eliminar asistencias correspondientes al día seleccionado',
+        })
+      }
+
       // =====================================================
       // VERIFICAR PERMISOS POR SEDE
       // =====================================================
@@ -1027,6 +1066,7 @@ if (registrosOtraFecha.rows.length > 0) {
     }
   }
 )
+
 // =====================================================
 // ELIMINAR ASISTENCIA
 // =====================================================
@@ -1101,6 +1141,7 @@ app.delete(
     }
   }
 )
+
 // =====================================================
 // ELIMINAR ASISTENCIA
 // =====================================================
@@ -1175,6 +1216,7 @@ app.delete(
     }
   }
 )
+
 // =====================================================
 // OBTENER SEDES (FILTRADAS POR LÍDER)
 // =====================================================
@@ -1391,6 +1433,7 @@ app.put(
     }
   }
 )
+
 // =====================================================
 // ELIMINAR ASIGNACIONES POR RANGO
 // =====================================================
@@ -1471,6 +1514,7 @@ app.delete(
     }
   }
 )
+
 // =====================================================
 // ELIMINAR ASIGNACIÓN
 // =====================================================

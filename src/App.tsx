@@ -586,20 +586,51 @@ useEffect(() => {
       const data = await response.json()
 
       const formattedShiftTypes: ShiftType[] = data.map(
-        (shift: any) => ({
-          id: Number(shift.id),
-          name: shift.nombre || '',
-          hours:
-            shift.hora_inicio && shift.hora_fin
-              ? calculateHours(
-                  shift.hora_inicio,
-                  shift.hora_fin
-                )
-              : '',
-          start: shift.hora_inicio || undefined,
-          end: shift.hora_fin || undefined,
-        })
-      )
+  (shift: any) => {
+    const isSplit = Boolean(shift.es_partido)
+
+    const firstHours =
+      shift.hora_inicio && shift.hora_fin
+        ? calculateHours(
+            shift.hora_inicio,
+            shift.hora_fin
+          )
+        : ''
+
+    const secondHours =
+      isSplit &&
+      shift.hora_inicio_2 &&
+      shift.hora_fin_2
+        ? calculateHours(
+            shift.hora_inicio_2,
+            shift.hora_fin_2
+          )
+        : ''
+
+    const hours =
+      firstHours && secondHours
+        ? (
+            Number(firstHours) +
+            Number(secondHours)
+          ).toString()
+        : firstHours
+
+    return {
+      id: Number(shift.id),
+      name: shift.nombre || '',
+      hours,
+      start:
+        shift.hora_inicio || undefined,
+      end:
+        shift.hora_fin || undefined,
+      isSplit,
+      start2:
+        shift.hora_inicio_2 || undefined,
+      end2:
+        shift.hora_fin_2 || undefined,
+    }
+  }
+)
 
       setShiftTypes(formattedShiftTypes)
     } catch (error) {
