@@ -6,6 +6,7 @@ import DeliveryCalendar from './pages/DeliveryCalendar'
 import Attendance from './pages/Attendance'
 import Reports from './pages/Reports'
 import Dashboard from './pages/Dashboard'
+import Novedades from './pages/Novedades'
 
 export type Page =
   | 'dashboard'
@@ -15,6 +16,7 @@ export type Page =
   | 'deliveryCalendar'
   | 'attendance'
   | 'reports'
+  | 'novedades'
 
 export type Employee = {
   id: number
@@ -124,6 +126,7 @@ const branchesByRole: Record<string, string[]> = {
     'ZULUAGA',
   ],
 }
+
 function calculateHours(
   start?: string,
   end?: string
@@ -142,6 +145,7 @@ function calculateHours(
 
   return ((endMin - startMin) / 60).toString()
 }
+
 /*
 =========================================================
 FUNCIÓN PARA OBTENER LAS SEDES PERMITIDAS
@@ -364,8 +368,9 @@ export default function App() {
   CARGAR ASIGNACIONES DE PRODUCCIÓN
   ========================================================
   */
-const [assignments, setAssignments] =
-  useState<Assignment[]>([])
+
+  const [assignments, setAssignments] =
+    useState<Assignment[]>([])
 
   useEffect(() => {
     const loadProductionAssignments =
@@ -503,9 +508,8 @@ const [assignments, setAssignments] =
                   day:
                     date.getUTCDate(),
 
-                 
-                 month:
-  date.getUTCMonth(),
+                  month:
+                    date.getUTCMonth(),
 
                   year:
                     date.getUTCFullYear(),
@@ -562,91 +566,90 @@ const [assignments, setAssignments] =
   */
 
   const [shiftTypes, setShiftTypes] =
-  useState<ShiftType[]>([])
-useEffect(() => {
-  const loadShiftTypes = async () => {
-    try {
-      const token = localStorage.getItem('token')
+    useState<ShiftType[]>([])
 
-      const response = await fetch(
-        'https://crm-rrhh-backend.onrender.com/api/tipos-turno',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+  useEffect(() => {
+    const loadShiftTypes = async () => {
+      try {
+        const token = localStorage.getItem('token')
+
+        const response = await fetch(
+          'https://crm-rrhh-backend.onrender.com/api/tipos-turno',
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        )
+
+        if (!response.ok) {
+          throw new Error(
+            'No se pudieron cargar los tipos de turno'
+          )
         }
-      )
 
-      if (!response.ok) {
-        throw new Error(
-          'No se pudieron cargar los tipos de turno'
+        const data = await response.json()
+
+        const formattedShiftTypes: ShiftType[] = data.map(
+          (shift: any) => {
+            const isSplit = Boolean(shift.es_partido)
+
+            const firstHours =
+              shift.hora_inicio && shift.hora_fin
+                ? calculateHours(
+                    shift.hora_inicio,
+                    shift.hora_fin
+                  )
+                : ''
+
+            const secondHours =
+              isSplit &&
+              shift.hora_inicio_2 &&
+              shift.hora_fin_2
+                ? calculateHours(
+                    shift.hora_inicio_2,
+                    shift.hora_fin_2
+                  )
+                : ''
+
+            const hours =
+              firstHours && secondHours
+                ? (
+                    Number(firstHours) +
+                    Number(secondHours)
+                  ).toString()
+                : firstHours
+
+            return {
+              id: Number(shift.id),
+              name: shift.nombre || '',
+              hours,
+              start:
+                shift.hora_inicio || undefined,
+              end:
+                shift.hora_fin || undefined,
+              isSplit,
+              start2:
+                shift.hora_inicio_2 || undefined,
+              end2:
+                shift.hora_fin_2 || undefined,
+            }
+          }
+        )
+
+        setShiftTypes(formattedShiftTypes)
+      } catch (error) {
+        console.error(
+          'Error cargando tipos de turno:',
+          error
         )
       }
-
-      const data = await response.json()
-
-      const formattedShiftTypes: ShiftType[] = data.map(
-  (shift: any) => {
-    const isSplit = Boolean(shift.es_partido)
-
-    const firstHours =
-      shift.hora_inicio && shift.hora_fin
-        ? calculateHours(
-            shift.hora_inicio,
-            shift.hora_fin
-          )
-        : ''
-
-    const secondHours =
-      isSplit &&
-      shift.hora_inicio_2 &&
-      shift.hora_fin_2
-        ? calculateHours(
-            shift.hora_inicio_2,
-            shift.hora_fin_2
-          )
-        : ''
-
-    const hours =
-      firstHours && secondHours
-        ? (
-            Number(firstHours) +
-            Number(secondHours)
-          ).toString()
-        : firstHours
-
-    return {
-      id: Number(shift.id),
-      name: shift.nombre || '',
-      hours,
-      start:
-        shift.hora_inicio || undefined,
-      end:
-        shift.hora_fin || undefined,
-      isSplit,
-      start2:
-        shift.hora_inicio_2 || undefined,
-      end2:
-        shift.hora_fin_2 || undefined,
     }
-  }
-)
 
-      setShiftTypes(formattedShiftTypes)
-    } catch (error) {
-      console.error(
-        'Error cargando tipos de turno:',
-        error
-      )
+    if (usuario) {
+      loadShiftTypes()
     }
-  }
-
-  if (usuario) {
-    loadShiftTypes()
-  }
-}, [usuario])
-  
- 
+  }, [usuario])
 
   /*
   ========================================================
@@ -1215,6 +1218,19 @@ useEffect(() => {
                   )
                 }
               />
+
+              <MenuButton
+                label="Novedades"
+                active={
+                  page ===
+                  'novedades'
+                }
+                onClick={() =>
+                  setPage(
+                    'novedades'
+                  )
+                }
+              />
             </>
           )}
 
@@ -1429,7 +1445,6 @@ useEffect(() => {
 
         {page === 'turns' && (
           <Calendar
-
             assignments={
               assignments
             }
@@ -1471,7 +1486,6 @@ useEffect(() => {
             readOnly={
               isReadOnly
             }
-
           />
         )}
 
@@ -1526,6 +1540,16 @@ useEffect(() => {
               }
             />
           )}
+
+        {/* NOVEDADES SOLO ADMIN */}
+
+        {page ===
+  'novedades' &&
+  isAdmin && (
+    <Novedades
+      employees={employees}
+    />
+  )}
 
       </main>
 

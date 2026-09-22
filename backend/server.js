@@ -1677,6 +1677,463 @@ app.post('/api/login', async (req, res) => {
     })
   }
 })
+// =====================================================
+// NOVEDADES DE NÓMINA
+// =====================================================
+
+// =====================================================
+// OBTENER NOVEDADES
+// =====================================================
+
+app.get(
+  '/api/novedades-nomina',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      let query = `
+        SELECT
+          n.id,
+          n.empleado_id,
+          e.nombre AS empleado_nombre,
+          e.documento,
+          e.cargo,
+          e.sede_id,
+          s.nombre AS sede_nombre,
+          n.tipo_novedad,
+          n.fecha_inicio,
+          n.fecha_fin,
+          n.dias,
+          n.estado,
+          n.afecta_nomina,
+          n.tratamiento_nomina,
+          n.observacion,
+          n.soporte_url,
+          n.creado_por,
+          n.created_at
+        FROM novedades_nomina n
+        INNER JOIN empleados e
+          ON e.id = n.empleado_id
+        LEFT JOIN sedes s
+          ON s.id = e.sede_id
+      `
+
+      const params = []
+
+      // ADMIN y JEFE pueden visualizar todas las novedades
+      if (
+        req.usuario.rol !== 'ADMIN' &&
+        req.usuario.rol !== 'JEFE'
+      ) {
+        const sedesPermitidas =
+          sedesPorRol[req.usuario.rol]
+
+        if (!sedesPermitidas) {
+          return res.status(403).json({
+            mensaje: 'Rol sin sedes asignadas',
+          })
+        }
+
+        query += `
+          WHERE e.sede_id = ANY($1::int[])
+        `
+
+        params.push(sedesPermitidas)
+      }
+
+      query += `
+        ORDER BY n.fecha_inicio DESC, n.id DESC
+      `
+
+      const result = await pool.query(query, params)
+
+      res.json(result.rows)
+    } catch (error) {
+      console.error('Error obteniendo novedades:', error)
+
+      res.status(500).json({
+        mensaje: 'Error obteniendo novedades',
+        error: error.message,
+      })
+    }
+  }
+)
+
+// =====================================================
+// CREAR NOVEDAD
+// =====================================================
+
+app.post(
+  '/api/novedades-nomina',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const {
+        empleado_id,
+        tipo_novedad,
+        fecha_inicio,
+        fecha_fin,
+        estado,
+        afecta_nomina,
+        tratamiento_nomina,
+        observacion,
+        soporte_url,
+      } = req.body
+
+      if (
+        !empleado_id ||
+        !tipo_novedad ||
+        !fecha_inicio ||
+        !fecha_fin
+      ) {
+        return res.status(400).json({
+          mensaje:
+            'Empleado, tipo de novedad, fecha de inicio y fecha de fin son obligatorios',
+        })
+      }
+
+      if (fecha_inicio > fecha_fin) {
+        return res.status(400).json({
+          mensaje:
+            'La fecha de inicio no puede ser posterior a la fecha final',
+        })
+      }
+
+      // Buscar la sede del empleado
+      const empleado = await pool.query(
+        `
+        SELECT id, sede_id
+        FROM empleados
+        WHERE id = $1
+        `,
+        [empleado_id]
+      )
+
+      if (empleado.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Empleado no encontrado',
+        })
+      }
+
+      const sedeId = Number(empleado.rows[0].sede_id)
+
+      // Validar permisos por sede
+      if (req.usuario.rol !== 'ADMIN') {
+        const sedesPermitidas =
+          sedesPorRol[req.usuario.rol]
+
+        if (
+          !sedesPermitidas ||
+          !sedesPermitidas.includes(sedeId)
+        ) {
+          return res.status(403).json({
+            mensaje:
+              'No tienes permisos para registrar novedades de este empleado',
+          })
+        }
+      }
+
+      // Calcular los días automáticamente
+      const fechaInicio = new Date(`${fecha_inicio}T00:00:00`)
+      const fechaFin = new Date(`${fecha_fin}T00:00:00`)
+
+      const diferencia =
+        fechaFin.getTime() - fechaInicio.getTime()
+
+      const dias =
+        Math.floor(diferencia / (1000 * 60 * 60 * 24)) + 1
+
+      const result = await pool.query(
+        `
+        INSERT INTO novedades_nomina
+        (
+          empleado_id,
+          tipo_novedad,
+          fecha_inicio,
+          fecha_fin,
+          dias,
+          estado,
+          afecta_nomina,
+          tratamiento_nomina,
+          observacion,
+          soporte_url,
+          creado_por
+        )
+        VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING
+          id,
+          empleado_id,
+          tipo_novedad,
+          fecha_inicio,
+          fecha_fin,
+          dias,
+          estado,
+          afecta_nomina,
+          tratamiento_nomina,
+          observacion,
+          soporte_url,
+          creado_por,
+          created_at
+        `,
+        [
+          empleado_id,
+          tipo_novedad,
+          fecha_inicio,
+          fecha_fin,
+          dias,
+          estado || 'PENDIENTE',
+          afecta_nomina !== false,
+          tratamiento_nomina || null,
+          observacion || null,
+          soporte_url || null,
+          req.usuario.id,
+        ]
+      )
+
+      res.status(201).json(result.rows[0])
+    } catch (error) {
+      console.error('Error creando novedad:', error)
+
+      res.status(500).json({
+        mensaje: 'Error creando novedad',
+        error: error.message,
+      })
+    }
+  }
+)
+
+// =====================================================
+// EDITAR NOVEDAD
+// =====================================================
+
+app.put(
+  '/api/novedades-nomina/:id',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+
+      const {
+        empleado_id,
+        tipo_novedad,
+        fecha_inicio,
+        fecha_fin,
+        estado,
+        afecta_nomina,
+        tratamiento_nomina,
+        observacion,
+        soporte_url,
+      } = req.body
+
+      if (
+        !empleado_id ||
+        !tipo_novedad ||
+        !fecha_inicio ||
+        !fecha_fin
+      ) {
+        return res.status(400).json({
+          mensaje:
+            'Empleado, tipo de novedad, fecha de inicio y fecha de fin son obligatorios',
+        })
+      }
+
+      if (fecha_inicio > fecha_fin) {
+        return res.status(400).json({
+          mensaje:
+            'La fecha de inicio no puede ser posterior a la fecha final',
+        })
+      }
+
+      // Verificar que la novedad exista
+      const novedadActual = await pool.query(
+        `
+        SELECT empleado_id
+        FROM novedades_nomina
+        WHERE id = $1
+        `,
+        [id]
+      )
+
+      if (novedadActual.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Novedad no encontrada',
+        })
+      }
+
+      // Buscar la sede del empleado nuevo
+      const empleado = await pool.query(
+        `
+        SELECT id, sede_id
+        FROM empleados
+        WHERE id = $1
+        `,
+        [empleado_id]
+      )
+
+      if (empleado.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Empleado no encontrado',
+        })
+      }
+
+      const sedeId = Number(empleado.rows[0].sede_id)
+
+      // Validar permisos por sede
+      if (req.usuario.rol !== 'ADMIN') {
+        const sedesPermitidas =
+          sedesPorRol[req.usuario.rol]
+
+        if (
+          !sedesPermitidas ||
+          !sedesPermitidas.includes(sedeId)
+        ) {
+          return res.status(403).json({
+            mensaje:
+              'No tienes permisos para modificar novedades de este empleado',
+          })
+        }
+      }
+
+      // Calcular días automáticamente
+      const fechaInicio = new Date(`${fecha_inicio}T00:00:00`)
+      const fechaFin = new Date(`${fecha_fin}T00:00:00`)
+
+      const diferencia =
+        fechaFin.getTime() - fechaInicio.getTime()
+
+      const dias =
+        Math.floor(diferencia / (1000 * 60 * 60 * 24)) + 1
+
+      const result = await pool.query(
+        `
+        UPDATE novedades_nomina
+        SET
+          empleado_id = $1,
+          tipo_novedad = $2,
+          fecha_inicio = $3,
+          fecha_fin = $4,
+          dias = $5,
+          estado = $6,
+          afecta_nomina = $7,
+          tratamiento_nomina = $8,
+          observacion = $9,
+          soporte_url = $10
+        WHERE id = $11
+        RETURNING
+          id,
+          empleado_id,
+          tipo_novedad,
+          fecha_inicio,
+          fecha_fin,
+          dias,
+          estado,
+          afecta_nomina,
+          tratamiento_nomina,
+          observacion,
+          soporte_url,
+          creado_por,
+          created_at
+        `,
+        [
+          empleado_id,
+          tipo_novedad,
+          fecha_inicio,
+          fecha_fin,
+          dias,
+          estado || 'PENDIENTE',
+          afecta_nomina !== false,
+          tratamiento_nomina || null,
+          observacion || null,
+          soporte_url || null,
+          id,
+        ]
+      )
+
+      res.json(result.rows[0])
+    } catch (error) {
+      console.error('Error editando novedad:', error)
+
+      res.status(500).json({
+        mensaje: 'Error editando novedad',
+        error: error.message,
+      })
+    }
+  }
+)
+
+// =====================================================
+// ELIMINAR NOVEDAD
+// =====================================================
+
+app.delete(
+  '/api/novedades-nomina/:id',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+
+      const novedad = await pool.query(
+        `
+        SELECT
+          n.id,
+          e.sede_id
+        FROM novedades_nomina n
+        INNER JOIN empleados e
+          ON e.id = n.empleado_id
+        WHERE n.id = $1
+        `,
+        [id]
+      )
+
+      if (novedad.rows.length === 0) {
+        return res.status(404).json({
+          mensaje: 'Novedad no encontrada',
+        })
+      }
+
+      const sedeId = Number(novedad.rows[0].sede_id)
+
+      // Validar permisos por sede
+      if (req.usuario.rol !== 'ADMIN') {
+        const sedesPermitidas =
+          sedesPorRol[req.usuario.rol]
+
+        if (
+          !sedesPermitidas ||
+          !sedesPermitidas.includes(sedeId)
+        ) {
+          return res.status(403).json({
+            mensaje:
+              'No tienes permisos para eliminar esta novedad',
+          })
+        }
+      }
+
+      await pool.query(
+        `
+        DELETE FROM novedades_nomina
+        WHERE id = $1
+        `,
+        [id]
+      )
+
+      res.json({
+        mensaje: 'Novedad eliminada correctamente',
+      })
+    } catch (error) {
+      console.error('Error eliminando novedad:', error)
+
+      res.status(500).json({
+        mensaje: 'Error eliminando novedad',
+        error: error.message,
+      })
+    }
+  }
+)
 
 // =====================================================
 // INICIAR SERVIDOR
