@@ -49,38 +49,101 @@ export default function Employees({
   };
 
   // PASO 3: Funciones para guardar y editar empleados
-  const saveEmployee = () => {
-    if (!form.name || !form.document) return;
+  const saveEmployee = async () => {
+  if (!form.name || !form.document) return
 
-    if (editingId) {
-      setEmployees(
-        employees.map(emp =>
-          emp.id === editingId
-            ? { ...emp, ...form }
-            : emp
-        )
-      );
-    } else {
-      setEmployees([
-        ...employees,
-        {
-          id: Date.now(),
-          ...form
-        }
-      ]);
+  try {
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      alert('Sesión no encontrada. Inicia sesión nuevamente.')
+      return
     }
 
-    // Resetear formulario y cerrar
+    // =====================================================
+    // CREAR EMPLEADO
+    // =====================================================
+
+    if (!editingId) {
+      const response = await fetch(
+        'https://crm-rrhh-backend.onrender.com/api/empleados',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            nombre: form.name,
+            documento: form.document,
+            cargo: form.role,
+            username: form.username,
+            estado: form.status,
+          }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.mensaje || 'No se pudo crear el empleado'
+        )
+      }
+
+      const newEmployee: Employee = {
+        id: Number(data.id),
+        name: data.nombre || '',
+        document: data.documento || '',
+        role: data.cargo || '',
+        username: data.username || '',
+        status: data.estado || 'Activo',
+      }
+
+      setEmployees([
+        ...employees,
+        newEmployee,
+      ])
+    }
+
+    // =====================================================
+    // POR AHORA NO EDITAMOS EN BACKEND
+    // =====================================================
+
+    if (editingId) {
+      alert(
+        'La edición de empleados todavía no está conectada al servidor.'
+      )
+      return
+    }
+
+    // =====================================================
+    // LIMPIAR FORMULARIO
+    // =====================================================
+
     setForm({
       name: '',
       document: '',
       role: '',
       username: '',
-      status: 'Activo'
-    });
-    setEditingId(null);
-    setShowForm(false);
-  };
+      status: 'Activo',
+    })
+
+    setEditingId(null)
+    setShowForm(false)
+
+  } catch (error: any) {
+    console.error(
+      'Error guardando empleado:',
+      error
+    )
+
+    alert(
+      error.message ||
+      'No se pudo guardar el empleado'
+    )
+  }
+}
 
   const editEmployee = (emp: Employee) => {
     setForm({
