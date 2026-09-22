@@ -638,8 +638,7 @@ app.delete(
 
       if (!Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({
-          mensaje:
-            'Debes seleccionar al menos una asistencia',
+          mensaje: 'Debes seleccionar al menos una asistencia',
         })
       }
 
@@ -656,7 +655,7 @@ app.delete(
           (id) => Number.isInteger(id) && id > 0
         )
 
-      if (idsNumericos.length === 0) {
+      if (idsNumericos.length !== ids.length) {
         return res.status(400).json({
           mensaje: 'Los IDs de las asistencias no son válidos',
         })
@@ -675,7 +674,7 @@ app.delete(
         [idsNumericos]
       )
 
-      // Verificar que todas las asistencias existan
+      // Verificar que todas existan
       if (
         asistencias.rows.length !==
         idsNumericos.length
@@ -686,13 +685,33 @@ app.delete(
         })
       }
 
-      // Verificar que todas correspondan al día seleccionado
+      // =====================================================
+      // VERIFICAR FECHA
+      // PostgreSQL devuelve DATE como Date en Node.js,
+      // por lo que convertimos la fecha a YYYY-MM-DD
+      // usando la zona horaria de Colombia.
+      // =====================================================
+
+      const fechaSeleccionada = String(fecha).slice(0, 10)
+
       const registrosOtraFecha =
-        asistencias.rows.filter(
-          (asistencia) =>
-            String(asistencia.fecha).slice(0, 10) !==
-            String(fecha).slice(0, 10)
-        )
+        asistencias.rows.filter((asistencia) => {
+          const fechaAsistencia = new Date(
+            asistencia.fecha
+          )
+
+          const fechaBD = new Intl.DateTimeFormat(
+            'en-CA',
+            {
+              timeZone: 'America/Bogota',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+            }
+          ).format(fechaAsistencia)
+
+          return fechaBD !== fechaSeleccionada
+        })
 
       if (registrosOtraFecha.length > 0) {
         return res.status(403).json({
@@ -701,7 +720,10 @@ app.delete(
         })
       }
 
-      // Verificar permisos por sede para los líderes
+      // =====================================================
+      // VERIFICAR PERMISOS POR SEDE
+      // =====================================================
+
       if (req.usuario.rol !== 'ADMIN') {
         const sedesPermitidas =
           sedesPorRol[req.usuario.rol]
@@ -728,7 +750,10 @@ app.delete(
         }
       }
 
-      // Eliminar todas las asistencias seleccionadas
+      // =====================================================
+      // ELIMINAR
+      // =====================================================
+
       const result = await pool.query(
         `
         DELETE FROM asistencias
