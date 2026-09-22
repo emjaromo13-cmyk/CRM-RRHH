@@ -71,44 +71,82 @@ export default function ShiftTypes({
     color: "bg-green-100 text-green-700",
   });
 
-  const saveShift = () => {
+  const saveShift = async () => {
     if (!form.name) return;
 
-    // Calcular las horas automáticamente si no se introdujeron manualmente
-    const computedHours = form.hours || totalHours(form);
+    try {
+      const token = localStorage.getItem("token");
 
-    const shiftData: ShiftType = {
-      id: editingId ?? Date.now(),
-      name: form.name,
-      hours: computedHours,
-      start: form.start || undefined,
-      end: form.end || undefined,
-      isSplit: form.isSplit,
-      start2: form.start2 || undefined,
-      end2: form.end2 || undefined,
-      color: form.color,
-    };
+      const body = {
+        nombre: form.name,
+        hora_inicio: form.start || null,
+        hora_fin: form.end || null,
+      };
 
-    if (editingId) {
-      setShiftTypes(
-        shiftTypes.map((s) => (s.id === editingId ? shiftData : s))
+      const url = editingId
+        ? `https://crm-rrhh-backend.onrender.com/api/tipos-turno/${editingId}`
+        : "https://crm-rrhh-backend.onrender.com/api/tipos-turno";
+
+      const response = await fetch(url, {
+        method: editingId ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.mensaje || "No se pudo guardar el tipo de turno"
+        );
+      }
+
+      const savedShift: ShiftType = {
+        id: Number(data.id),
+        name: data.nombre || "",
+        hours:
+          data.hora_inicio && data.hora_fin
+            ? totalHours({
+                start: data.hora_inicio,
+                end: data.hora_fin,
+              })
+            : "",
+        start: data.hora_inicio || undefined,
+        end: data.hora_fin || undefined,
+      };
+
+      if (editingId) {
+        setShiftTypes(
+          shiftTypes.map((s) => (s.id === editingId ? savedShift : s))
+        );
+      } else {
+        setShiftTypes([...shiftTypes, savedShift]);
+      }
+
+      setForm({
+        name: "",
+        hours: "",
+        start: "",
+        end: "",
+        isSplit: false,
+        start2: "",
+        end2: "",
+        color: "bg-green-100 text-green-700",
+      });
+
+      setEditingId(null);
+    } catch (error) {
+      console.error("Error guardando tipo de turno:", error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar el tipo de turno"
       );
-    } else {
-      setShiftTypes([...shiftTypes, shiftData]);
     }
-
-    setForm({
-      name: "",
-      hours: "",
-      start: "",
-      end: "",
-      isSplit: false,
-      start2: "",
-      end2: "",
-      color: "bg-green-100 text-green-700",
-    });
-
-    setEditingId(null);
   };
 
   const editShift = (shift: ShiftType) => {
@@ -126,8 +164,38 @@ export default function ShiftTypes({
     setEditingId(shift.id);
   };
 
-  const deleteShift = (id: number) => {
-    setShiftTypes(shiftTypes.filter((s) => s.id !== id));
+  const deleteShift = async (id: number) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const response = await fetch(
+        `https://crm-rrhh-backend.onrender.com/api/tipos-turno/${id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.mensaje || "No se pudo eliminar el tipo de turno"
+        );
+      }
+
+      setShiftTypes(shiftTypes.filter((s) => s.id !== id));
+    } catch (error) {
+      console.error("Error eliminando tipo de turno:", error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "No se pudo eliminar el tipo de turno"
+      );
+    }
   };
 
   return (

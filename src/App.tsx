@@ -124,7 +124,24 @@ const branchesByRole: Record<string, string[]> = {
     'ZULUAGA',
   ],
 }
+function calculateHours(
+  start?: string,
+  end?: string
+): string {
+  if (!start || !end) return ''
 
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+
+  let startMin = sh * 60 + sm
+  let endMin = eh * 60 + em
+
+  if (endMin < startMin) {
+    endMin += 24 * 60
+  }
+
+  return ((endMin - startMin) / 60).toString()
+}
 /*
 =========================================================
 FUNCIÓN PARA OBTENER LAS SEDES PERMITIDAS
@@ -546,7 +563,57 @@ const [assignments, setAssignments] =
 
   const [shiftTypes, setShiftTypes] =
   useState<ShiftType[]>([])
+useEffect(() => {
+  const loadShiftTypes = async () => {
+    try {
+      const token = localStorage.getItem('token')
 
+      const response = await fetch(
+        'https://crm-rrhh-backend.onrender.com/api/tipos-turno',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(
+          'No se pudieron cargar los tipos de turno'
+        )
+      }
+
+      const data = await response.json()
+
+      const formattedShiftTypes: ShiftType[] = data.map(
+        (shift: any) => ({
+          id: Number(shift.id),
+          name: shift.nombre || '',
+          hours:
+            shift.hora_inicio && shift.hora_fin
+              ? calculateHours(
+                  shift.hora_inicio,
+                  shift.hora_fin
+                )
+              : '',
+          start: shift.hora_inicio || undefined,
+          end: shift.hora_fin || undefined,
+        })
+      )
+
+      setShiftTypes(formattedShiftTypes)
+    } catch (error) {
+      console.error(
+        'Error cargando tipos de turno:',
+        error
+      )
+    }
+  }
+
+  if (usuario) {
+    loadShiftTypes()
+  }
+}, [usuario])
   
  
 
