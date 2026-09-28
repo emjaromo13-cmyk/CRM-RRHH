@@ -1708,6 +1708,9 @@ app.get(
           n.afecta_nomina,
           n.tratamiento_nomina,
           n.observacion,
+          n.periodo_nomina,
+          n.valor,
+          n.observacion_nomina,
           n.soporte_url,
           n.creado_por,
           n.created_at
@@ -1778,6 +1781,9 @@ app.post(
         afecta_nomina,
         tratamiento_nomina,
         observacion,
+        periodo_nomina,
+        valor,
+        observacion_nomina,
         soporte_url,
       } = req.body
 
@@ -1835,14 +1841,21 @@ app.post(
       }
 
       // Calcular los días automáticamente
-      const fechaInicio = new Date(`${fecha_inicio}T00:00:00`)
-      const fechaFin = new Date(`${fecha_fin}T00:00:00`)
+      const fechaInicio = new Date(
+        `${fecha_inicio}T00:00:00`
+      )
+
+      const fechaFin = new Date(
+        `${fecha_fin}T00:00:00`
+      )
 
       const diferencia =
         fechaFin.getTime() - fechaInicio.getTime()
 
       const dias =
-        Math.floor(diferencia / (1000 * 60 * 60 * 24)) + 1
+        Math.floor(
+          diferencia / (1000 * 60 * 60 * 24)
+        ) + 1
 
       const result = await pool.query(
         `
@@ -1857,11 +1870,29 @@ app.post(
           afecta_nomina,
           tratamiento_nomina,
           observacion,
+          periodo_nomina,
+          valor,
+          observacion_nomina,
           soporte_url,
           creado_por
         )
         VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10,
+          $11,
+          $12,
+          $13,
+          $14
+        )
         RETURNING
           id,
           empleado_id,
@@ -1873,6 +1904,9 @@ app.post(
           afecta_nomina,
           tratamiento_nomina,
           observacion,
+          periodo_nomina,
+          valor,
+          observacion_nomina,
           soporte_url,
           creado_por,
           created_at
@@ -1887,6 +1921,11 @@ app.post(
           afecta_nomina !== false,
           tratamiento_nomina || null,
           observacion || null,
+          periodo_nomina || null,
+          valor !== undefined && valor !== ''
+            ? Number(valor)
+            : null,
+          observacion_nomina || null,
           soporte_url || null,
           req.usuario.id,
         ]
@@ -1925,6 +1964,9 @@ app.put(
         afecta_nomina,
         tratamiento_nomina,
         observacion,
+        periodo_nomina,
+        valor,
+        observacion_nomina,
         soporte_url,
       } = req.body
 
@@ -1998,14 +2040,21 @@ app.put(
       }
 
       // Calcular días automáticamente
-      const fechaInicio = new Date(`${fecha_inicio}T00:00:00`)
-      const fechaFin = new Date(`${fecha_fin}T00:00:00`)
+      const fechaInicio = new Date(
+        `${fecha_inicio}T00:00:00`
+      )
+
+      const fechaFin = new Date(
+        `${fecha_fin}T00:00:00`
+      )
 
       const diferencia =
         fechaFin.getTime() - fechaInicio.getTime()
 
       const dias =
-        Math.floor(diferencia / (1000 * 60 * 60 * 24)) + 1
+        Math.floor(
+          diferencia / (1000 * 60 * 60 * 24)
+        ) + 1
 
       const result = await pool.query(
         `
@@ -2020,8 +2069,11 @@ app.put(
           afecta_nomina = $7,
           tratamiento_nomina = $8,
           observacion = $9,
-          soporte_url = $10
-        WHERE id = $11
+          periodo_nomina = $10,
+          valor = $11,
+          observacion_nomina = $12,
+          soporte_url = $13
+        WHERE id = $14
         RETURNING
           id,
           empleado_id,
@@ -2033,6 +2085,9 @@ app.put(
           afecta_nomina,
           tratamiento_nomina,
           observacion,
+          periodo_nomina,
+          valor,
+          observacion_nomina,
           soporte_url,
           creado_por,
           created_at
@@ -2047,6 +2102,11 @@ app.put(
           afecta_nomina !== false,
           tratamiento_nomina || null,
           observacion || null,
+          periodo_nomina || null,
+          valor !== undefined && valor !== ''
+            ? Number(valor)
+            : null,
+          observacion_nomina || null,
           soporte_url || null,
           id,
         ]
@@ -2095,7 +2155,9 @@ app.delete(
         })
       }
 
-      const sedeId = Number(novedad.rows[0].sede_id)
+      const sedeId = Number(
+        novedad.rows[0].sede_id
+      )
 
       // Validar permisos por sede
       if (req.usuario.rol !== 'ADMIN') {
@@ -2125,7 +2187,10 @@ app.delete(
         mensaje: 'Novedad eliminada correctamente',
       })
     } catch (error) {
-      console.error('Error eliminando novedad:', error)
+      console.error(
+        'Error eliminando novedad:',
+        error
+      )
 
       res.status(500).json({
         mensaje: 'Error eliminando novedad',
@@ -2134,7 +2199,6 @@ app.delete(
     }
   }
 )
-
 // =====================================================
 // INICIAR SERVIDOR
 // =====================================================
