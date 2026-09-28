@@ -7,6 +7,7 @@ type Employee = {
   role: string
   username: string
   status: string
+  sede_id?: number
 }
 
 type Novedad = {
@@ -25,6 +26,9 @@ type Novedad = {
   afecta_nomina: boolean
   tratamiento_nomina: string | null
   observacion: string | null
+  periodo_nomina: string | null
+  valor: number | null
+  observacion_nomina: string | null
   soporte_url: string | null
   creado_por: number | null
   created_at: string
@@ -57,10 +61,10 @@ const TIPOS_NOVEDAD = [
 const TIPOS_LABEL: Record<string, string> = {
   INGRESO: 'Ingreso',
   RETIRO: 'Retiro',
-  INCAPACIDAD_GENERAL: 'Incapacidad general (EG)',
-  INCAPACIDAD_LABORAL: 'Incapacidad laboral (ATEP)',
-  LICENCIA_MATERNIDAD: 'Licencia de maternidad',
-  LICENCIA_PATERNIDAD: 'Licencia de paternidad',
+  INCAPACIDAD_GENERAL: 'Incapacidad general',
+  INCAPACIDAD_LABORAL: 'Incapacidad laboral',
+  LICENCIA_MATERNIDAD: 'Licencia maternidad',
+  LICENCIA_PATERNIDAD: 'Licencia paternidad',
   LICENCIA_LUTO: 'Licencia de luto',
   LICENCIA_NO_REMUNERADA: 'Licencia no remunerada',
   VACACIONES: 'Vacaciones',
@@ -80,6 +84,15 @@ const ESTADO_LABEL: Record<string, string> = {
   PENDIENTE: 'Pendiente',
   APROBADA: 'Aprobada',
   RECHAZADA: 'Rechazada',
+}
+
+const TRATAMIENTOS: Record<string, string> = {
+  PAGO_COMPLETO: 'Pago completo',
+  PAGO_PARCIAL: 'Pago parcial',
+  NO_PAGO: 'No pago',
+  DESCUENTO: 'Descuento',
+  PENDIENTE_REVISION: 'Pendiente de revisión',
+  NO_APLICA: 'No aplica',
 }
 
 const API_URL = 'http://localhost:3000'
@@ -123,42 +136,121 @@ function iniciales(nombre: string) {
 
 function colorTipo(tipo: string) {
   if (tipo.includes('INCAPACIDAD')) {
-    return 'bg-amber-50 text-amber-700 border-amber-200'
+    return 'bg-rose-100 text-rose-600'
   }
 
   if (tipo.includes('LICENCIA')) {
-    return 'bg-purple-50 text-purple-700 border-purple-200'
+    return 'bg-violet-100 text-violet-600'
   }
 
   if (tipo === 'VACACIONES') {
-    return 'bg-blue-50 text-blue-700 border-blue-200'
+    return 'bg-emerald-100 text-emerald-600'
   }
 
   if (tipo.includes('PERMISO')) {
-    return 'bg-cyan-50 text-cyan-700 border-cyan-200'
+    return 'bg-amber-100 text-amber-600'
   }
 
   if (tipo === 'RETIRO') {
-    return 'bg-red-50 text-red-700 border-red-200'
+    return 'bg-red-100 text-red-600'
   }
 
   if (tipo === 'INGRESO') {
-    return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    return 'bg-blue-100 text-blue-600'
   }
 
-  return 'bg-slate-50 text-slate-600 border-slate-200'
+  return 'bg-slate-100 text-slate-600'
 }
 
 function colorEstado(estado: string) {
   if (estado === 'APROBADA') {
-    return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    return 'bg-emerald-100 text-emerald-700'
   }
 
   if (estado === 'RECHAZADA') {
-    return 'bg-red-50 text-red-700 border-red-200'
+    return 'bg-red-100 text-red-700'
   }
 
-  return 'bg-amber-50 text-amber-700 border-amber-200'
+  return 'bg-amber-100 text-amber-700'
+}
+
+function colorCalendario(tipo: string) {
+  if (tipo.includes('INCAPACIDAD')) return 'bg-rose-400 text-white'
+  if (tipo === 'VACACIONES') return 'bg-emerald-400 text-white'
+  if (tipo.includes('LICENCIA')) return 'bg-violet-400 text-white'
+  if (tipo.includes('PERMISO')) return 'bg-amber-400 text-white'
+  if (tipo === 'RETIRO') return 'bg-red-400 text-white'
+  if (tipo === 'INGRESO') return 'bg-blue-400 text-white'
+  return 'bg-slate-400 text-white'
+}
+
+function abreviaturaTipo(tipo: string) {
+  if (tipo.includes('INCAPACIDAD')) return 'I'
+  if (tipo === 'VACACIONES') return 'V'
+  if (tipo.includes('LICENCIA')) return 'L'
+  if (tipo.includes('PERMISO')) return 'P'
+  if (tipo === 'RETIRO') return 'R'
+  if (tipo === 'INGRESO') return 'IN'
+  if (tipo === 'AUSENCIA') return 'A'
+  return 'N'
+}
+
+function nombrePeriodo(periodo: string) {
+  if (!periodo) return ''
+
+  const [anio, mes] = periodo.split('-')
+
+  const fecha = new Date(Number(anio), Number(mes) - 1, 1)
+
+  return fecha.toLocaleDateString('es-CO', {
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function periodoActual() {
+  const fecha = new Date()
+
+  return `${fecha.getFullYear()}-${String(
+    fecha.getMonth() + 1
+  ).padStart(2, '0')}`
+}
+
+function generarPeriodos() {
+  const fechaActual = new Date()
+  const periodos: string[] = []
+
+  for (let i = -6; i <= 6; i++) {
+    const fecha = new Date(
+      fechaActual.getFullYear(),
+      fechaActual.getMonth() + i,
+      1
+    )
+
+    periodos.push(
+      `${fecha.getFullYear()}-${String(
+        fecha.getMonth() + 1
+      ).padStart(2, '0')}`
+    )
+  }
+
+  return periodos
+}
+
+function diasDelMes(periodo: string) {
+  const [anio, mes] = periodo.split('-').map(Number)
+
+  return new Date(anio, mes, 0).getDate()
+}
+
+function fechaDentroDeNovedad(
+  novedad: Novedad,
+  fecha: string
+) {
+  const inicio = novedad.fecha_inicio.split('T')[0]
+  const fin = novedad.fecha_fin.split('T')[0]
+
+  return fecha >= inicio && fecha <= fin
 }
 
 export default function Novedades({ employees }: Props) {
@@ -169,7 +261,12 @@ export default function Novedades({ employees }: Props) {
   const [mostrarModal, setMostrarModal] = useState(false)
   const [editando, setEditando] = useState<Novedad | null>(null)
 
+  const [vista, setVista] = useState<'lista' | 'mensual'>('lista')
+
+  const [periodo, setPeriodo] = useState(periodoActual())
   const [busqueda, setBusqueda] = useState('')
+  const [filtroSede, setFiltroSede] = useState('TODAS')
+  const [filtroTipo, setFiltroTipo] = useState('TODAS')
   const [filtroEstado, setFiltroEstado] = useState('TODAS')
 
   const [empleadoId, setEmpleadoId] = useState('')
@@ -179,9 +276,17 @@ export default function Novedades({ employees }: Props) {
   const [estado, setEstado] = useState('PENDIENTE')
   const [afectaNomina, setAfectaNomina] = useState(true)
   const [tratamientoNomina, setTratamientoNomina] = useState('')
+  const [valor, setValor] = useState('')
   const [observacion, setObservacion] = useState('')
+  const [observacionNomina, setObservacionNomina] = useState('')
+  const [soporteUrl, setSoporteUrl] = useState('')
 
   const [guardando, setGuardando] = useState(false)
+  const [seleccionada, setSeleccionada] = useState<Novedad | null>(null)
+
+  const [pagina, setPagina] = useState(1)
+
+  const POR_PAGINA = 5
 
   const diasCalculados = useMemo(
     () => calcularDias(fechaInicio, fechaFin),
@@ -195,16 +300,22 @@ export default function Novedades({ employees }: Props) {
 
       const token = obtenerToken()
 
-      const respuesta = await fetch(`${API_URL}/api/novedades-nomina`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const respuesta = await fetch(
+        `${API_URL}/api/novedades-nomina`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
 
       const datos = await respuesta.json()
 
       if (!respuesta.ok) {
-        throw new Error(datos.mensaje || 'No se pudieron cargar las novedades')
+        throw new Error(
+          datos.mensaje ||
+            'No se pudieron cargar las novedades'
+        )
       }
 
       setNovedades(datos)
@@ -231,7 +342,10 @@ export default function Novedades({ employees }: Props) {
     setEstado('PENDIENTE')
     setAfectaNomina(true)
     setTratamientoNomina('')
+    setValor('')
     setObservacion('')
+    setObservacionNomina('')
+    setSoporteUrl('')
     setEditando(null)
   }
 
@@ -244,12 +358,28 @@ export default function Novedades({ employees }: Props) {
     setEditando(novedad)
     setEmpleadoId(String(novedad.empleado_id))
     setTipoNovedad(novedad.tipo_novedad)
-    setFechaInicio(novedad.fecha_inicio?.split('T')[0] || '')
-    setFechaFin(novedad.fecha_fin?.split('T')[0] || '')
+    setFechaInicio(
+      novedad.fecha_inicio?.split('T')[0] || ''
+    )
+    setFechaFin(
+      novedad.fecha_fin?.split('T')[0] || ''
+    )
     setEstado(novedad.estado)
     setAfectaNomina(novedad.afecta_nomina)
-    setTratamientoNomina(novedad.tratamiento_nomina || '')
+    setTratamientoNomina(
+      novedad.tratamiento_nomina || ''
+    )
+    setValor(
+      novedad.valor !== null &&
+        novedad.valor !== undefined
+        ? String(novedad.valor)
+        : ''
+    )
     setObservacion(novedad.observacion || '')
+    setObservacionNomina(
+      novedad.observacion_nomina || ''
+    )
+    setSoporteUrl(novedad.soporte_url || '')
     setMostrarModal(true)
   }
 
@@ -260,16 +390,25 @@ export default function Novedades({ employees }: Props) {
     limpiarFormulario()
   }
 
-  async function guardarNovedad(e: React.FormEvent) {
+  async function guardarNovedad(
+    e: React.FormEvent
+  ) {
     e.preventDefault()
 
-    if (!empleadoId || !tipoNovedad || !fechaInicio || !fechaFin) {
+    if (
+      !empleadoId ||
+      !tipoNovedad ||
+      !fechaInicio ||
+      !fechaFin
+    ) {
       setError('Completa los campos obligatorios.')
       return
     }
 
     if (diasCalculados <= 0) {
-      setError('La fecha final debe ser igual o posterior a la fecha inicial.')
+      setError(
+        'La fecha final debe ser igual o posterior a la fecha inicial.'
+      )
       return
     }
 
@@ -286,8 +425,18 @@ export default function Novedades({ employees }: Props) {
         fecha_fin: fechaFin,
         estado,
         afecta_nomina: afectaNomina,
-        tratamiento_nomina: tratamientoNomina || null,
+        tratamiento_nomina:
+          tratamientoNomina || null,
         observacion: observacion || null,
+        periodo_nomina: periodo,
+        valor:
+          valor !== ''
+            ? Number(valor)
+            : null,
+        observacion_nomina:
+          observacionNomina || null,
+        soporte_url:
+          soporteUrl || null,
       }
 
       const url = editando
@@ -306,11 +455,15 @@ export default function Novedades({ employees }: Props) {
       const datos = await respuesta.json()
 
       if (!respuesta.ok) {
-        throw new Error(datos.mensaje || 'No se pudo guardar la novedad')
+        throw new Error(
+          datos.mensaje ||
+            'No se pudo guardar la novedad'
+        )
       }
 
       setMostrarModal(false)
       limpiarFormulario()
+
       await cargarNovedades()
     } catch (err) {
       setError(
@@ -323,7 +476,9 @@ export default function Novedades({ employees }: Props) {
     }
   }
 
-  async function eliminarNovedad(novedad: Novedad) {
+  async function eliminarNovedad(
+    novedad: Novedad
+  ) {
     const confirmar = window.confirm(
       `¿Seguro que deseas eliminar la novedad de ${novedad.empleado_nombre}?`
     )
@@ -348,7 +503,14 @@ export default function Novedades({ employees }: Props) {
       const datos = await respuesta.json()
 
       if (!respuesta.ok) {
-        throw new Error(datos.mensaje || 'No se pudo eliminar la novedad')
+        throw new Error(
+          datos.mensaje ||
+            'No se pudo eliminar la novedad'
+        )
+      }
+
+      if (seleccionada?.id === novedad.id) {
+        setSeleccionada(null)
       }
 
       await cargarNovedades()
@@ -361,178 +523,461 @@ export default function Novedades({ employees }: Props) {
     }
   }
 
+  const sedes = useMemo(() => {
+    const mapa = new Map<number, string>()
+
+    novedades.forEach((novedad) => {
+      if (novedad.sede_id) {
+        mapa.set(
+          novedad.sede_id,
+          novedad.sede_nombre || `Sede ${novedad.sede_id}`
+        )
+      }
+    })
+
+    return Array.from(mapa.entries()).sort(
+      (a, b) => a[1].localeCompare(b[1])
+    )
+  }, [novedades])
+
   const novedadesFiltradas = useMemo(() => {
-    const texto = busqueda.trim().toLowerCase()
+    const texto = busqueda
+      .trim()
+      .toLowerCase()
 
     return novedades.filter((novedad) => {
       const coincideBusqueda =
         !texto ||
-        novedad.empleado_nombre.toLowerCase().includes(texto) ||
-        novedad.documento?.toLowerCase().includes(texto) ||
-        TIPOS_LABEL[novedad.tipo_novedad]
+        novedad.empleado_nombre
+          .toLowerCase()
+          .includes(texto) ||
+        novedad.documento
           ?.toLowerCase()
           .includes(texto)
 
+      const coincideSede =
+        filtroSede === 'TODAS' ||
+        String(novedad.sede_id) === filtroSede
+
+      const coincideTipo =
+        filtroTipo === 'TODAS' ||
+        novedad.tipo_novedad === filtroTipo
+
       const coincideEstado =
-        filtroEstado === 'TODAS' || novedad.estado === filtroEstado
+        filtroEstado === 'TODAS' ||
+        novedad.estado === filtroEstado
 
-      return coincideBusqueda && coincideEstado
+      const coincidePeriodo =
+        !periodo ||
+        novedad.periodo_nomina === periodo ||
+        (
+          !novedad.periodo_nomina &&
+          novedad.fecha_inicio.startsWith(periodo)
+        )
+
+      return (
+        coincideBusqueda &&
+        coincideSede &&
+        coincideTipo &&
+        coincideEstado &&
+        coincidePeriodo
+      )
     })
-  }, [novedades, busqueda, filtroEstado])
+  }, [
+    novedades,
+    busqueda,
+    filtroSede,
+    filtroTipo,
+    filtroEstado,
+    periodo,
+  ])
 
-  const totalPendientes = novedades.filter(
-    (novedad) => novedad.estado === 'PENDIENTE'
-  ).length
+  useEffect(() => {
+    setPagina(1)
+  }, [
+    busqueda,
+    filtroSede,
+    filtroTipo,
+    filtroEstado,
+    periodo,
+  ])
 
-  const totalAfectanNomina = novedades.filter(
-    (novedad) => novedad.afecta_nomina
-  ).length
+  const totalPaginas = Math.max(
+    1,
+    Math.ceil(
+      novedadesFiltradas.length / POR_PAGINA
+    )
+  )
+
+  const novedadesPagina = novedadesFiltradas.slice(
+    (pagina - 1) * POR_PAGINA,
+    pagina * POR_PAGINA
+  )
+
+  const novedadesPeriodo = novedades.filter(
+    (novedad) =>
+      novedad.periodo_nomina === periodo ||
+      (
+        !novedad.periodo_nomina &&
+        novedad.fecha_inicio.startsWith(periodo)
+      )
+  )
+
+  const totalIncapacidades =
+    novedadesPeriodo.filter((novedad) =>
+      novedad.tipo_novedad.includes(
+        'INCAPACIDAD'
+      )
+    ).length
+
+  const totalVacaciones =
+    novedadesPeriodo.filter(
+      (novedad) =>
+        novedad.tipo_novedad === 'VACACIONES'
+    ).length
+
+  const totalRetiros =
+    novedadesPeriodo.filter(
+      (novedad) =>
+        novedad.tipo_novedad === 'RETIRO'
+    ).length
+
+  const totalIngresos =
+    novedadesPeriodo.filter(
+      (novedad) =>
+        novedad.tipo_novedad === 'INGRESO'
+    ).length
+
+  const diasMes = diasDelMes(periodo)
+
+  const empleadosMensual = useMemo(() => {
+    const mapa = new Map<
+      number,
+      {
+        empleado_id: number
+        nombre: string
+        documento: string
+        sede: string
+        novedades: Novedad[]
+      }
+    >()
+
+    novedadesPeriodo.forEach((novedad) => {
+      if (!mapa.has(novedad.empleado_id)) {
+        mapa.set(novedad.empleado_id, {
+          empleado_id: novedad.empleado_id,
+          nombre: novedad.empleado_nombre,
+          documento: novedad.documento,
+          sede:
+            novedad.sede_nombre ||
+            `Sede ${novedad.sede_id}`,
+          novedades: [],
+        })
+      }
+
+      mapa
+        .get(novedad.empleado_id)!
+        .novedades.push(novedad)
+    })
+
+    return Array.from(mapa.values())
+  }, [novedadesPeriodo])
+
+  const periodos = generarPeriodos()
+
+  function fechaDelDia(dia: number) {
+    return `${periodo}-${String(dia).padStart(
+      2,
+      '0'
+    )}`
+  }
+
+  function obtenerNovedadDia(
+    novedadesEmpleado: Novedad[],
+    dia: number
+  ) {
+    const fecha = fechaDelDia(dia)
+
+    return novedadesEmpleado.find((novedad) =>
+      fechaDentroDeNovedad(novedad, fecha)
+    )
+  }
+
+  const empleadoSeleccionado = employees.find(
+    (employee) =>
+      String(employee.id) === empleadoId
+  )
 
   return (
-    <div className="space-y-6">
-      {/* ENCABEZADO */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-sm">
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <path d="M12 3v18M3 12h18" />
-                <rect x="4" y="4" width="16" height="16" rx="4" />
-              </svg>
-            </div>
+    <div className="min-h-full bg-slate-50/40 p-1">
+      {/* BREADCRUMB */}
+      <div className="mb-4 flex items-center gap-2 text-sm">
+        <span className="font-medium text-slate-500">
+          Nómina
+        </span>
+        <span className="text-slate-300">
+          /
+        </span>
+        <span className="font-semibold text-slate-800">
+          Novedades de Nómina
+        </span>
+      </div>
 
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-800">
-                Novedades
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                Gestión de novedades de nómina
-              </p>
-            </div>
+      {/* ENCABEZADO */}
+      <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            >
+              <rect
+                x="5"
+                y="3"
+                width="14"
+                height="18"
+                rx="2"
+              />
+              <path d="M9 7h6M9 11h6M9 15h3" />
+            </svg>
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Novedades de Nómina
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Gestiona y da seguimiento a las novedades
+              de nómina de tus empleados.
+            </p>
           </div>
         </div>
 
-        <button
-          onClick={abrirNueva}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700 hover:shadow-md"
-        >
-          <span className="text-xl leading-none">+</span>
-          Nueva novedad
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-500">
+              Periodo:
+            </span>
+
+            <select
+              value={periodo}
+              onChange={(e) =>
+                setPeriodo(e.target.value)
+              }
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            >
+              {periodos.map((item) => (
+                <option
+                  key={item}
+                  value={item}
+                >
+                  {nombrePeriodo(item)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={abrirNueva}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+          >
+            <span className="text-lg leading-none">
+              +
+            </span>
+            Nueva novedad
+          </button>
+        </div>
       </div>
 
       {/* ERROR */}
       {error && (
-        <div className="flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-5 flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
 
           <button
             onClick={() => setError('')}
-            className="font-bold text-red-500 hover:text-red-700"
+            className="font-bold text-red-500"
           >
             ×
           </button>
         </div>
       )}
 
-      {/* TARJETAS RESUMEN */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">
-                Total novedades
-              </p>
-              <p className="mt-2 text-3xl font-bold text-slate-800">
-                {novedades.length}
-              </p>
-            </div>
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+      {/* TARJETAS */}
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
               <svg
-                width="22"
-                height="22"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
               >
-                <rect x="4" y="4" width="16" height="16" rx="3" />
+                <rect
+                  x="5"
+                  y="4"
+                  width="14"
+                  height="16"
+                  rx="2"
+                />
                 <path d="M8 9h8M8 13h8M8 17h5" />
               </svg>
             </div>
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Total novedades
+              </p>
+              <p className="mt-1 text-2xl font-bold text-slate-800">
+                {novedadesPeriodo.length}
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">
-                Pendientes
-              </p>
-              <p className="mt-2 text-3xl font-bold text-slate-800">
-                {totalPendientes}
-              </p>
-            </div>
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-500">
               <svg
-                width="22"
-                height="22"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
               >
-                <circle cx="12" cy="12" r="8" />
-                <path d="M12 8v4l2.5 2" />
+                <path d="M8 3h8v4H8z" />
+                <rect
+                  x="5"
+                  y="7"
+                  width="14"
+                  height="14"
+                  rx="2"
+                />
+                <path d="M12 11v5M10 14h4" />
               </svg>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Incapacidades
+              </p>
+              <p className="mt-1 text-2xl font-bold text-slate-800">
+                {totalIncapacidades}
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">
-                Afectan nómina
-              </p>
-              <p className="mt-2 text-3xl font-bold text-slate-800">
-                {totalAfectanNomina}
-              </p>
-            </div>
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
               <svg
-                width="22"
-                height="22"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
               >
-                <path d="M12 3v18M7 7h7a3 3 0 0 1 0 6H8a3 3 0 0 0 0 6h9" />
+                <rect
+                  x="4"
+                  y="5"
+                  width="16"
+                  height="15"
+                  rx="2"
+                />
+                <path d="M8 3v4M16 3v4M4 9h16" />
               </svg>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Vacaciones
+              </p>
+              <p className="mt-1 text-2xl font-bold text-slate-800">
+                {totalVacaciones}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-orange-500">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
+                <rect
+                  x="5"
+                  y="4"
+                  width="14"
+                  height="16"
+                  rx="2"
+                />
+                <path d="M9 8h6M9 12h6M9 16h3" />
+              </svg>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Retiros
+              </p>
+              <p className="mt-1 text-2xl font-bold text-slate-800">
+                {totalRetiros}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-50 text-violet-500">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
+                <path d="M12 4v16M7 8h6a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8" />
+              </svg>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">
+                Ingresos
+              </p>
+              <p className="mt-1 text-2xl font-bold text-slate-800">
+                {totalIngresos}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* CONTROLES */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <div className="relative flex-1">
+      {/* FILTROS */}
+      <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+          <div className="relative">
             <svg
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-              width="19"
-              height="19"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              width="17"
+              height="17"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -544,456 +989,1118 @@ export default function Novedades({ employees }: Props) {
 
             <input
               value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar empleado, documento o novedad..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
+              onChange={(e) =>
+                setBusqueda(e.target.value)
+              }
+              placeholder="Buscar empleado..."
+              className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             />
           </div>
 
           <select
-            value={filtroEstado}
-            onChange={(e) => setFiltroEstado(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
+            value={filtroSede}
+            onChange={(e) =>
+              setFiltroSede(e.target.value)
+            }
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
           >
-            <option value="TODAS">Todos los estados</option>
+            <option value="TODAS">Todas las sedes</option>
+
+            {sedes.map(([id, nombre]) => (
+              <option
+                key={id}
+                value={id}
+              >
+                {nombre}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filtroTipo}
+            onChange={(e) =>
+              setFiltroTipo(e.target.value)
+            }
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="TODAS">
+              Todos los tipos
+            </option>
+
+            {TIPOS_NOVEDAD.map((tipo) => (
+              <option
+                key={tipo}
+                value={tipo}
+              >
+                {TIPOS_LABEL[tipo]}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filtroEstado}
+            onChange={(e) =>
+              setFiltroEstado(e.target.value)
+            }
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="TODAS">
+              Todos los estados
+            </option>
+
             {ESTADOS.map((item) => (
-              <option key={item} value={item}>
+              <option
+                key={item}
+                value={item}
+              >
                 {ESTADO_LABEL[item]}
               </option>
             ))}
           </select>
         </div>
+
+        <div className="mt-3 flex items-center justify-end gap-2">
+          <button
+            onClick={() => setVista('lista')}
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${
+              vista === 'lista'
+                ? 'border-blue-200 bg-blue-50 text-blue-700'
+                : 'border-slate-200 bg-white text-slate-500'
+            }`}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M8 6h13M8 12h13M8 18h13" />
+              <path d="M3 6h.01M3 12h.01M3 18h.01" />
+            </svg>
+            Vista lista
+          </button>
+
+          <button
+            onClick={() => setVista('mensual')}
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${
+              vista === 'mensual'
+                ? 'border-blue-200 bg-blue-50 text-blue-700'
+                : 'border-slate-200 bg-white text-slate-500'
+            }`}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <rect
+                x="3"
+                y="4"
+                width="18"
+                height="17"
+                rx="2"
+              />
+              <path d="M3 9h18M8 2v4M16 2v4" />
+            </svg>
+            Vista mensual
+          </button>
+        </div>
       </div>
 
-      {/* TABLA */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center justify-between">
+      {/* VISTA LISTA */}
+      {vista === 'lista' && (
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          {cargando ? (
+            <div className="flex min-h-[300px] items-center justify-center">
+              <div className="text-center">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+                <p className="mt-3 text-sm text-slate-500">
+                  Cargando novedades...
+                </p>
+              </div>
+            </div>
+          ) : novedadesPagina.length === 0 ? (
+            <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                <svg
+                  width="26"
+                  height="26"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                >
+                  <rect
+                    x="4"
+                    y="4"
+                    width="16"
+                    height="16"
+                    rx="3"
+                  />
+                  <path d="M8 9h8M8 13h5" />
+                </svg>
+              </div>
+
+              <h3 className="mt-4 font-semibold text-slate-700">
+                No hay novedades registradas
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-500">
+                No encontramos novedades para los
+                filtros seleccionados.
+              </p>
+
+              <button
+                onClick={abrirNueva}
+                className="mt-5 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Registrar novedad
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1100px]">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-3">
+                        Empleado
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Sede
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Tipo de novedad
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Periodo
+                      </th>
+
+                      <th className="px-4 py-3 text-center">
+                        Días
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Estado
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Afecta nómina
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Tratamiento
+                      </th>
+
+                      <th className="px-4 py-3 text-center">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {novedadesPagina.map(
+                      (novedad) => (
+                        <tr
+                          key={novedad.id}
+                          className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">
+                                {iniciales(
+                                  novedad.empleado_nombre
+                                )}
+                              </div>
+
+                              <div>
+                                <p className="text-sm font-semibold text-slate-700">
+                                  {
+                                    novedad.empleado_nombre
+                                  }
+                                </p>
+
+                                <p className="text-[11px] text-slate-400">
+                                  CC.{' '}
+                                  {
+                                    novedad.documento
+                                  }
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3 text-xs font-medium text-slate-600">
+                            {novedad.sede_nombre ||
+                              `Sede ${novedad.sede_id}`}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${colorTipo(
+                                novedad.tipo_novedad
+                              )}`}
+                            >
+                              {TIPOS_LABEL[
+                                novedad.tipo_novedad
+                              ] ||
+                                novedad.tipo_novedad}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <p className="text-xs font-medium text-slate-600">
+                              {formatearFecha(
+                                novedad.fecha_inicio
+                              )}{' '}
+                              -{' '}
+                              {formatearFecha(
+                                novedad.fecha_fin
+                              )}
+                            </p>
+                          </td>
+
+                          <td className="px-4 py-3 text-center text-sm font-semibold text-slate-700">
+                            {novedad.dias}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${colorEstado(
+                                novedad.estado
+                              )}`}
+                            >
+                              {ESTADO_LABEL[
+                                novedad.estado
+                              ] ||
+                                novedad.estado}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${
+                                novedad.afecta_nomina
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-slate-100 text-slate-500'
+                              }`}
+                            >
+                              {novedad.afecta_nomina
+                                ? 'Sí'
+                                : 'No'}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3 text-xs text-slate-600">
+                            {novedad.tratamiento_nomina
+                              ? TRATAMIENTOS[
+                                  novedad
+                                    .tratamiento_nomina
+                                ] ||
+                                novedad.tratamiento_nomina
+                              : '-'}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() =>
+                                  setSeleccionada(
+                                    novedad
+                                  )
+                                }
+                                title="Ver detalle"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600"
+                              >
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                >
+                                  <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+                                  <circle
+                                    cx="12"
+                                    cy="12"
+                                    r="2.5"
+                                  />
+                                </svg>
+                              </button>
+
+                              <button
+                                onClick={() =>
+                                  abrirEditar(
+                                    novedad
+                                  )
+                                }
+                                title="Editar"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600"
+                              >
+                                <svg
+                                  width="15"
+                                  height="15"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                >
+                                  <path d="M12 20h9" />
+                                  <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
+                                </svg>
+                              </button>
+
+                              <button
+                                onClick={() =>
+                                  eliminarNovedad(
+                                    novedad
+                                  )
+                                }
+                                title="Eliminar"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                              >
+                                <svg
+                                  width="15"
+                                  height="15"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                >
+                                  <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* PAGINACIÓN */}
+              <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
+                <p className="text-xs text-slate-500">
+                  Mostrando{' '}
+                  {novedadesPagina.length} de{' '}
+                  {novedadesFiltradas.length}{' '}
+                  novedades
+                </p>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={pagina === 1}
+                    onClick={() =>
+                      setPagina((p) =>
+                        Math.max(1, p - 1)
+                      )
+                    }
+                    className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 disabled:opacity-40"
+                  >
+                    ‹
+                  </button>
+
+                  {Array.from(
+                    { length: totalPaginas },
+                    (_, i) => i + 1
+                  ).map((item) => (
+                    <button
+                      key={item}
+                      onClick={() =>
+                        setPagina(item)
+                      }
+                      className={`h-8 min-w-8 rounded-md border px-2 text-xs font-medium ${
+                        pagina === item
+                          ? 'border-blue-600 bg-blue-600 text-white'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  ))}
+
+                  <button
+                    disabled={
+                      pagina === totalPaginas
+                    }
+                    onClick={() =>
+                      setPagina((p) =>
+                        Math.min(
+                          totalPaginas,
+                          p + 1
+                        )
+                      )
+                    }
+                    className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 disabled:opacity-40"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* VISTA MENSUAL */}
+      {vista === 'mensual' && (
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="font-semibold text-slate-800">
-                Registro de novedades
+                Vista mensual -{' '}
+                {nombrePeriodo(periodo)}
               </h2>
+
               <p className="mt-1 text-xs text-slate-500">
-                {novedadesFiltradas.length} registro
-                {novedadesFiltradas.length !== 1 ? 's' : ''}
+                Visualiza las novedades por empleado y
+                por día del mes.
               </p>
             </div>
-          </div>
-        </div>
 
-        {cargando ? (
-          <div className="flex min-h-[260px] items-center justify-center">
-            <div className="text-center">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600" />
-              <p className="mt-3 text-sm text-slate-500">
-                Cargando novedades...
-              </p>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+              <span className="flex items-center gap-1">
+                <span className="h-3 w-3 rounded bg-rose-400" />
+                Incapacidad
+              </span>
+
+              <span className="flex items-center gap-1">
+                <span className="h-3 w-3 rounded bg-emerald-400" />
+                Vacaciones
+              </span>
+
+              <span className="flex items-center gap-1">
+                <span className="h-3 w-3 rounded bg-violet-400" />
+                Licencia
+              </span>
+
+              <span className="flex items-center gap-1">
+                <span className="h-3 w-3 rounded bg-amber-400" />
+                Permiso
+              </span>
+
+              <span className="flex items-center gap-1">
+                <span className="h-3 w-3 rounded bg-red-400" />
+                Retiro
+              </span>
             </div>
           </div>
-        ) : novedadesFiltradas.length === 0 ? (
-          <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-              <svg
-                width="30"
-                height="30"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-              >
-                <rect x="4" y="4" width="16" height="16" rx="3" />
-                <path d="M8 9h8M8 13h5" />
-              </svg>
-            </div>
 
-            <h3 className="mt-4 font-semibold text-slate-700">
-              No hay novedades registradas
-            </h3>
-
-            <p className="mt-1 max-w-md text-sm text-slate-500">
-              Cuando registres una novedad de nómina, aparecerá aquí.
-            </p>
-
-            <button
-              onClick={abrirNueva}
-              className="mt-5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-            >
-              Registrar primera novedad
-            </button>
-          </div>
-        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[950px]">
+            <table className="w-full min-w-[1100px] border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/70 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="px-5 py-4 font-semibold">Empleado</th>
-                  <th className="px-4 py-4 font-semibold">Novedad</th>
-                  <th className="px-4 py-4 font-semibold">Periodo</th>
-                  <th className="px-4 py-4 text-center font-semibold">
-                    Días
+                <tr className="bg-slate-50">
+                  <th className="sticky left-0 z-10 min-w-[180px] border-r border-slate-200 px-3 py-3 text-left text-xs font-semibold text-slate-600">
+                    C.C. / Nombre
                   </th>
-                  <th className="px-4 py-4 font-semibold">Estado</th>
-                  <th className="px-4 py-4 font-semibold">Nómina</th>
-                  <th className="px-5 py-4 text-right font-semibold">
-                    Acciones
+
+                  <th className="sticky left-[180px] z-10 min-w-[120px] border-r border-slate-200 bg-slate-50 px-3 py-3 text-left text-xs font-semibold text-slate-600">
+                    Sede
                   </th>
+
+                  {Array.from(
+                    { length: diasMes },
+                    (_, i) => i + 1
+                  ).map((dia) => (
+                    <th
+                      key={dia}
+                      className="min-w-[32px] border-r border-slate-100 px-1 py-3 text-center text-[10px] font-semibold text-slate-500"
+                    >
+                      {dia}
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
               <tbody>
-                {novedadesFiltradas.map((novedad) => (
-                  <tr
-                    key={novedad.id}
-                    className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60"
-                  >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-sm font-bold text-indigo-600">
-                          {iniciales(novedad.empleado_nombre)}
-                        </div>
-
-                        <div>
-                          <p className="font-semibold text-slate-700">
-                            {novedad.empleado_nombre}
-                          </p>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {novedad.documento || 'Sin documento'}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <span
-                        className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-medium ${colorTipo(
-                          novedad.tipo_novedad
-                        )}`}
-                      >
-                        {TIPOS_LABEL[novedad.tipo_novedad] ||
-                          novedad.tipo_novedad}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <p className="text-sm font-medium text-slate-700">
-                        {formatearFecha(novedad.fecha_inicio)}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        hasta {formatearFecha(novedad.fecha_fin)}
-                      </p>
-                    </td>
-
-                    <td className="px-4 py-4 text-center">
-                      <span className="font-bold text-slate-700">
-                        {novedad.dias}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <span
-                        className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-semibold ${colorEstado(
-                          novedad.estado
-                        )}`}
-                      >
-                        {ESTADO_LABEL[novedad.estado] || novedad.estado}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {novedad.afecta_nomina ? (
-                        <div>
-                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                            Sí afecta
-                          </span>
-
-                          {novedad.tratamiento_nomina && (
-                            <p className="mt-1 text-xs text-slate-400">
-                              {novedad.tratamiento_nomina}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-                          <span className="h-2 w-2 rounded-full bg-slate-300" />
-                          No afecta
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => abrirEditar(novedad)}
-                          title="Editar"
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600"
-                        >
-                          <svg
-                            width="17"
-                            height="17"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                          >
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
-                          </svg>
-                        </button>
-
-                        <button
-                          onClick={() => eliminarNovedad(novedad)}
-                          title="Eliminar"
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                        >
-                          <svg
-                            width="17"
-                            height="17"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                          >
-                            <path d="M4 7h16" />
-                            <path d="M10 11v6M14 11v6" />
-                            <path d="M6 7l1 13h10l1-13" />
-                            <path d="M9 7V4h6v3" />
-                          </svg>
-                        </button>
-                      </div>
+                {empleadosMensual.length ===
+                0 ? (
+                  <tr>
+                    <td
+                      colSpan={diasMes + 2}
+                      className="py-16 text-center text-sm text-slate-500"
+                    >
+                      No hay novedades registradas
+                      para este período.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  empleadosMensual.map(
+                    (empleado) => (
+                      <tr
+                        key={
+                          empleado.empleado_id
+                        }
+                        className="border-t border-slate-100"
+                      >
+                        <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-2">
+                          <p className="text-xs font-semibold text-slate-700">
+                            {empleado.nombre}
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            {empleado.documento}
+                          </p>
+                        </td>
+
+                        <td className="sticky left-[180px] z-10 border-r border-slate-200 bg-white px-3 py-2 text-[10px] font-medium text-slate-600">
+                          {empleado.sede}
+                        </td>
+
+                        {Array.from(
+                          {
+                            length: diasMes,
+                          },
+                          (_, i) => i + 1
+                        ).map((dia) => {
+                          const novedad =
+                            obtenerNovedadDia(
+                              empleado.novedades,
+                              dia
+                            )
+
+                          return (
+                            <td
+                              key={dia}
+                              className="border-r border-slate-100 p-1 text-center"
+                            >
+                              {novedad ? (
+                                <button
+                                  onClick={() =>
+                                    setSeleccionada(
+                                      novedad
+                                    )
+                                  }
+                                  title={
+                                    TIPOS_LABEL[
+                                      novedad
+                                        .tipo_novedad
+                                    ]
+                                  }
+                                  className={`flex h-6 w-full items-center justify-center rounded text-[9px] font-bold ${colorCalendario(
+                                    novedad.tipo_novedad
+                                  )}`}
+                                >
+                                  {abreviaturaTipo(
+                                    novedad.tipo_novedad
+                                  )}
+                                </button>
+                              ) : (
+                                <span className="block h-6" />
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    )
+                  )
+                )}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* MODAL */}
+      {/* MODAL NUEVA / EDITAR */}
       {mostrarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
-          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-            {/* CABECERA MODAL */}
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-6 py-5">
+          <div className="max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-800">
-                  {editando ? 'Editar novedad' : 'Nueva novedad'}
+                <h2 className="text-lg font-bold text-slate-800">
+                  {editando
+                    ? 'Editar novedad de nómina'
+                    : 'Nueva novedad de nómina'}
                 </h2>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  Registra la información correspondiente a la novedad.
+                <p className="mt-1 text-xs text-slate-500">
+                  Registra la información correspondiente
+                  a la novedad.
                 </p>
               </div>
 
               <button
                 onClick={cerrarModal}
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-2xl text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-xl text-slate-400 hover:bg-slate-100"
               >
                 ×
               </button>
             </div>
 
-            <form onSubmit={guardarNovedad} className="p-6">
-              <div className="space-y-6">
-                {/* EMPLEADO */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Empleado <span className="text-red-500">*</span>
-                  </label>
-
-                  <select
-                    value={empleadoId}
-                    onChange={(e) => setEmpleadoId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-                    required
-                  >
-                    <option value="">Selecciona un empleado</option>
-
-                    {employees.map((employee) => (
-                      <option key={employee.id} value={employee.id}>
-                        {employee.name} — {employee.document}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* TIPO */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Tipo de novedad <span className="text-red-500">*</span>
-                  </label>
-
-                  <select
-                    value={tipoNovedad}
-                    onChange={(e) => setTipoNovedad(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-                    required
-                  >
-                    <option value="">Selecciona el tipo</option>
-
-                    {TIPOS_NOVEDAD.map((tipo) => (
-                      <option key={tipo} value={tipo}>
-                        {TIPOS_LABEL[tipo]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* FECHAS */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Fecha inicio <span className="text-red-500">*</span>
-                    </label>
-
-                    <input
-                      type="date"
-                      value={fechaInicio}
-                      onChange={(e) => setFechaInicio(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Fecha fin <span className="text-red-500">*</span>
-                    </label>
-
-                    <input
-                      type="date"
-                      value={fechaFin}
-                      min={fechaInicio || undefined}
-                      onChange={(e) => setFechaFin(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Días
-                    </label>
-
-                    <div className="flex h-[46px] items-center rounded-xl border border-indigo-100 bg-indigo-50 px-4">
-                      <span className="text-lg font-bold text-indigo-600">
-                        {diasCalculados}
+            <form
+              onSubmit={guardarNovedad}
+              className="p-5"
+            >
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                {/* COLUMNA IZQUIERDA */}
+                <div className="space-y-4">
+                  {/* EMPLEADO */}
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-600">
+                        1
                       </span>
 
-                      <span className="ml-2 text-sm text-indigo-500">
-                        {diasCalculados === 1 ? 'día' : 'días'}
+                      <h3 className="text-sm font-semibold text-slate-700">
+                        Empleado
+                      </h3>
+                    </div>
+
+                    <select
+                      value={empleadoId}
+                      onChange={(e) =>
+                        setEmpleadoId(
+                          e.target.value
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                      required
+                    >
+                      <option value="">
+                        Buscar empleado...
+                      </option>
+
+                      {employees.map(
+                        (employee) => (
+                          <option
+                            key={employee.id}
+                            value={employee.id}
+                          >
+                            {employee.name} —{' '}
+                            {employee.document}
+                          </option>
+                        )
+                      )}
+                    </select>
+
+                    {empleadoSeleccionado && (
+                      <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">
+                            {iniciales(
+                              empleadoSeleccionado.name
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-sm font-semibold text-slate-700">
+                              {
+                                empleadoSeleccionado.name
+                              }
+                            </p>
+
+                            <p className="text-[11px] text-slate-400">
+                              CC.{' '}
+                              {
+                                empleadoSeleccionado.document
+                              }
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <p className="text-slate-400">
+                              Cargo
+                            </p>
+                            <p className="mt-1 font-medium text-slate-600">
+                              {
+                                empleadoSeleccionado.role
+                              }
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-slate-400">
+                              Estado
+                            </p>
+                            <p className="mt-1 font-medium text-slate-600">
+                              {
+                                empleadoSeleccionado.status
+                              }
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* INFORMACIÓN NOVEDAD */}
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-600">
+                        2
                       </span>
+
+                      <h3 className="text-sm font-semibold text-slate-700">
+                        Información de la novedad
+                      </h3>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Tipo de novedad *
+                        </label>
+
+                        <select
+                          value={tipoNovedad}
+                          onChange={(e) =>
+                            setTipoNovedad(
+                              e.target.value
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                          required
+                        >
+                          <option value="">
+                            Selecciona el tipo
+                          </option>
+
+                          {TIPOS_NOVEDAD.map(
+                            (tipo) => (
+                              <option
+                                key={tipo}
+                                value={tipo}
+                              >
+                                {
+                                  TIPOS_LABEL[
+                                    tipo
+                                  ]
+                                }
+                              </option>
+                            )
+                          )}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div>
+                          <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                            Fecha inicio *
+                          </label>
+
+                          <input
+                            type="date"
+                            value={fechaInicio}
+                            onChange={(e) =>
+                              setFechaInicio(
+                                e.target.value
+                              )
+                            }
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs outline-none focus:border-blue-400"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                            Fecha fin *
+                          </label>
+
+                          <input
+                            type="date"
+                            value={fechaFin}
+                            min={
+                              fechaInicio ||
+                              undefined
+                            }
+                            onChange={(e) =>
+                              setFechaFin(
+                                e.target.value
+                              )
+                            }
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs outline-none focus:border-blue-400"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                            Días
+                          </label>
+
+                          <div className="flex h-[38px] items-center rounded-lg bg-blue-50 px-3">
+                            <span className="font-bold text-blue-600">
+                              {diasCalculados}
+                            </span>
+
+                            <span className="ml-1 text-xs text-blue-500">
+                              {diasCalculados ===
+                              1
+                                ? 'día'
+                                : 'días'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Estado
+                        </label>
+
+                        <select
+                          value={estado}
+                          onChange={(e) =>
+                            setEstado(
+                              e.target.value
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+                        >
+                          {ESTADOS.map(
+                            (item) => (
+                              <option
+                                key={item}
+                                value={item}
+                              >
+                                {
+                                  ESTADO_LABEL[
+                                    item
+                                  ]
+                                }
+                              </option>
+                            )
+                          )}
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* ESTADO */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Estado
-                    </label>
-
-                    <select
-                      value={estado}
-                      onChange={(e) => setEstado(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-                    >
-                      {ESTADOS.map((item) => (
-                        <option key={item} value={item}>
-                          {ESTADO_LABEL[item]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* AFECTA NOMINA */}
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      ¿Afecta la nómina?
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={() => setAfectaNomina(!afectaNomina)}
-                      className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 transition ${
-                        afectaNomina
-                          ? 'border-emerald-200 bg-emerald-50'
-                          : 'border-slate-200 bg-slate-50'
-                      }`}
-                    >
-                      <span
-                        className={`text-sm font-semibold ${
-                          afectaNomina
-                            ? 'text-emerald-700'
-                            : 'text-slate-500'
-                        }`}
-                      >
-                        {afectaNomina ? 'Sí, afecta nómina' : 'No afecta nómina'}
+                {/* COLUMNA DERECHA */}
+                <div className="space-y-4">
+                  {/* NÓMINA */}
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-600">
+                        3
                       </span>
 
-                      <span
-                        className={`relative h-6 w-11 rounded-full transition ${
-                          afectaNomina ? 'bg-emerald-500' : 'bg-slate-300'
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition ${
-                            afectaNomina ? 'left-6' : 'left-1'
-                          }`}
+                      <h3 className="text-sm font-semibold text-slate-700">
+                        Nómina
+                      </h3>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Periodo de nómina
+                        </label>
+
+                        <select
+                          value={periodo}
+                          onChange={(e) =>
+                            setPeriodo(
+                              e.target.value
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+                        >
+                          {periodos.map(
+                            (item) => (
+                              <option
+                                key={item}
+                                value={item}
+                              >
+                                {nombrePeriodo(
+                                  item
+                                )}
+                              </option>
+                            )
+                          )}
+                        </select>
+                      </div>
+
+                      <div>
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-600">
+                            ¿Afecta nómina?
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAfectaNomina(
+                                !afectaNomina
+                              )
+                            }
+                            className={`relative h-6 w-11 rounded-full transition ${
+                              afectaNomina
+                                ? 'bg-blue-600'
+                                : 'bg-slate-300'
+                            }`}
+                          >
+                            <span
+                              className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
+                                afectaNomina
+                                  ? 'left-6'
+                                  : 'left-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        <p className="text-xs text-slate-400">
+                          {afectaNomina
+                            ? 'Sí, esta novedad afecta la nómina'
+                            : 'No afecta la nómina'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Tratamiento de nómina
+                        </label>
+
+                        <select
+                          value={
+                            tratamientoNomina
+                          }
+                          onChange={(e) =>
+                            setTratamientoNomina(
+                              e.target.value
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+                        >
+                          <option value="">
+                            Selecciona un tratamiento
+                          </option>
+
+                          {Object.entries(
+                            TRATAMIENTOS
+                          ).map(
+                            ([valor, label]) => (
+                              <option
+                                key={valor}
+                                value={valor}
+                              >
+                                {label}
+                              </option>
+                            )
+                          )}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Valor / porcentaje
+                          (opcional)
+                        </label>
+
+                        <div className="flex">
+                          <span className="flex items-center rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 px-3 text-xs text-slate-500">
+                            $
+                          </span>
+
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={valor}
+                            onChange={(e) =>
+                              setValor(
+                                e.target.value
+                              )
+                            }
+                            placeholder="0.00"
+                            className="w-full rounded-r-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SOPORTE */}
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-600">
+                        4
+                      </span>
+
+                      <h3 className="text-sm font-semibold text-slate-700">
+                        Soporte
+                      </h3>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Observación
+                        </label>
+
+                        <textarea
+                          value={observacion}
+                          onChange={(e) =>
+                            setObservacion(
+                              e.target.value
+                            )
+                          }
+                          rows={3}
+                          placeholder="Escribe una observación..."
+                          className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
                         />
-                      </span>
-                    </button>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Observación para nómina
+                        </label>
+
+                        <textarea
+                          value={
+                            observacionNomina
+                          }
+                          onChange={(e) =>
+                            setObservacionNomina(
+                              e.target.value
+                            )
+                          }
+                          rows={3}
+                          placeholder="Escribe una observación para nómina..."
+                          className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                          Soporte
+                        </label>
+
+                        <input
+                          type="url"
+                          value={soporteUrl}
+                          onChange={(e) =>
+                            setSoporteUrl(
+                              e.target.value
+                            )
+                          }
+                          placeholder="https://..."
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-
-                {/* TRATAMIENTO */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Tratamiento de nómina
-                  </label>
-
-                  <select
-                    value={tratamientoNomina}
-                    onChange={(e) => setTratamientoNomina(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-                  >
-                    <option value="">Selecciona un tratamiento</option>
-                    <option value="PAGO_COMPLETO">Pago completo</option>
-                    <option value="PAGO_PARCIAL">Pago parcial</option>
-                    <option value="NO_PAGO">No pago</option>
-                    <option value="DESCUENTO">Descuento</option>
-                    <option value="PENDIENTE_REVISION">
-                      Pendiente de revisión
-                    </option>
-                    <option value="NO_APLICA">No aplica</option>
-                  </select>
-                </div>
-
-                {/* OBSERVACION */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Observación
-                  </label>
-
-                  <textarea
-                    value={observacion}
-                    onChange={(e) => setObservacion(e.target.value)}
-                    rows={4}
-                    placeholder="Agrega información adicional sobre la novedad..."
-                    className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-                  />
                 </div>
               </div>
 
-              {/* BOTONES */}
-              <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+              <div className="mt-5 flex justify-end gap-3 border-t border-slate-100 pt-4">
                 <button
                   type="button"
                   onClick={cerrarModal}
                   disabled={guardando}
-                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   Cancelar
                 </button>
@@ -1001,16 +2108,251 @@ export default function Novedades({ employees }: Props) {
                 <button
                   type="submit"
                   disabled={guardando}
-                  className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
                 >
                   {guardando
                     ? 'Guardando...'
                     : editando
                       ? 'Guardar cambios'
-                      : 'Registrar novedad'}
+                      : 'Guardar novedad'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* PANEL DETALLE */}
+      {seleccionada && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-end bg-slate-900/20">
+          <div className="h-full w-full max-w-sm overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <h2 className="font-bold text-slate-800">
+                Detalle de novedad
+              </h2>
+
+              <button
+                onClick={() =>
+                  setSeleccionada(null)
+                }
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-xl text-slate-400 hover:bg-slate-100"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-5">
+              <span
+                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${colorTipo(
+                  seleccionada.tipo_novedad
+                )}`}
+              >
+                {
+                  TIPOS_LABEL[
+                    seleccionada.tipo_novedad
+                  ]
+                }
+              </span>
+
+              <div className="mt-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-600">
+                  {iniciales(
+                    seleccionada.empleado_nombre
+                  )}
+                </div>
+
+                <div>
+                  <p className="font-semibold text-slate-800">
+                    {
+                      seleccionada.empleado_nombre
+                    }
+                  </p>
+
+                  <p className="text-xs text-slate-400">
+                    CC. {seleccionada.documento}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <p className="text-xs text-slate-400">
+                    Sede
+                  </p>
+
+                  <p className="mt-1 text-sm font-medium text-slate-700">
+                    {seleccionada.sede_nombre ||
+                      `Sede ${seleccionada.sede_id}`}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-400">
+                    Periodo
+                  </p>
+
+                  <p className="mt-1 text-sm font-medium text-slate-700">
+                    {formatearFecha(
+                      seleccionada.fecha_inicio
+                    )}{' '}
+                    -{' '}
+                    {formatearFecha(
+                      seleccionada.fecha_fin
+                    )}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-400">
+                    Días
+                  </p>
+
+                  <p className="mt-1 text-sm font-medium text-slate-700">
+                    {seleccionada.dias}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-400">
+                    Estado
+                  </p>
+
+                  <span
+                    className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${colorEstado(
+                      seleccionada.estado
+                    )}`}
+                  >
+                    {
+                      ESTADO_LABEL[
+                        seleccionada.estado
+                      ]
+                    }
+                  </span>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-400">
+                    Afecta nómina
+                  </p>
+
+                  <span
+                    className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                      seleccionada.afecta_nomina
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {seleccionada.afecta_nomina
+                      ? 'Sí'
+                      : 'No'}
+                  </span>
+                </div>
+
+                {seleccionada.tratamiento_nomina && (
+                  <div>
+                    <p className="text-xs text-slate-400">
+                      Tratamiento
+                    </p>
+
+                    <p className="mt-1 text-sm font-medium text-slate-700">
+                      {TRATAMIENTOS[
+                        seleccionada
+                          .tratamiento_nomina
+                      ] ||
+                        seleccionada.tratamiento_nomina}
+                    </p>
+                  </div>
+                )}
+
+                {seleccionada.valor !== null &&
+                  seleccionada.valor !==
+                    undefined && (
+                    <div>
+                      <p className="text-xs text-slate-400">
+                        Valor
+                      </p>
+
+                      <p className="mt-1 text-sm font-semibold text-slate-700">
+                        $
+                        {Number(
+                          seleccionada.valor
+                        ).toLocaleString(
+                          'es-CO'
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                {seleccionada.observacion && (
+                  <div>
+                    <p className="text-xs text-slate-400">
+                      Observación
+                    </p>
+
+                    <p className="mt-1 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                      {
+                        seleccionada.observacion
+                      }
+                    </p>
+                  </div>
+                )}
+
+                {seleccionada
+                  .observacion_nomina && (
+                  <div>
+                    <p className="text-xs text-slate-400">
+                      Observación para nómina
+                    </p>
+
+                    <p className="mt-1 rounded-lg bg-blue-50 p-3 text-sm text-slate-600">
+                      {
+                        seleccionada
+                          .observacion_nomina
+                      }
+                    </p>
+                  </div>
+                )}
+
+                {seleccionada.soporte_url && (
+                  <a
+                    href={
+                      seleccionada.soporte_url
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-lg border border-slate-200 px-4 py-3 text-center text-sm font-semibold text-blue-600 hover:bg-blue-50"
+                  >
+                    Ver soporte
+                  </a>
+                )}
+              </div>
+
+              <div className="mt-6 flex gap-2">
+                <button
+                  onClick={() => {
+                    abrirEditar(
+                      seleccionada
+                    )
+                    setSeleccionada(null)
+                  }}
+                  className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Editar
+                </button>
+
+                <button
+                  onClick={() => {
+                    eliminarNovedad(
+                      seleccionada
+                    )
+                    setSeleccionada(null)
+                  }}
+                  className="rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
