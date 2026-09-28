@@ -1015,12 +1015,7 @@ export default function Novedades({
         }
       >()
 
-      /*
-       * Primero agregamos todos los empleados
-       * que vienen del módulo Empleados.
-       * Así la vista mensual no desaparece
-       * cuando un empleado no tiene novedades.
-       */
+      
       employees.forEach(
         (employee) => {
           mapa.set(employee.id, {
@@ -2016,9 +2011,7 @@ export default function Novedades({
                     C.C. / Nombre
                   </th>
 
-                  <th className="sticky left-[180px] z-10 min-w-[120px] border-r border-slate-200 bg-slate-50 px-3 py-3 text-left text-xs font-semibold text-slate-600">
-                    Sede
-                  </th>
+                  
 
                   {Array.from(
                     {
@@ -2046,7 +2039,7 @@ export default function Novedades({
                   <tr>
                     <td
                       colSpan={
-                        diasMes + 2
+                        diasMes + 1
                       }
                       className="py-16 text-center text-sm text-slate-500"
                     >
@@ -2077,11 +2070,7 @@ export default function Novedades({
                           </p>
                         </td>
 
-                        <td className="sticky left-[180px] z-10 border-r border-slate-200 bg-white px-3 py-2 text-[10px] font-medium text-slate-600">
-                          {
-                            empleado.sede
-                          }
-                        </td>
+                       
 
                         {Array.from(
                           {
