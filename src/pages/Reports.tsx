@@ -372,15 +372,14 @@ const Reports: React.FC<ReportsProps> = ({
       }
 
       const [attendanceResponse, novedadesResponse] =
-        await Promise.all([
-          fetch(`${API_URL}/asistencias`, {
-            headers,
-          }),
-          fetch(`${API_URL}/novedades-nomina`, {
-            headers,
-          }),
-        ]);
-
+  await Promise.all([
+    fetch(`${API_URL}/api/asistencias`, {
+      headers,
+    }),
+    fetch(`${API_URL}/api/novedades-nomina`, {
+      headers,
+    }),
+  ]);
       if (!attendanceResponse.ok) {
         throw new Error(
           `Error cargando asistencias: ${attendanceResponse.status}`
