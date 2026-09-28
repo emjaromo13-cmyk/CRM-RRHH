@@ -78,7 +78,11 @@ const TIPOS_LABEL: Record<string, string> = {
   OTRA: 'Otra',
 }
 
-const ESTADOS = ['PENDIENTE', 'APROBADA', 'RECHAZADA']
+const ESTADOS = [
+  'PENDIENTE',
+  'APROBADA',
+  'RECHAZADA',
+]
 
 const ESTADO_LABEL: Record<string, string> = {
   PENDIENTE: 'Pendiente',
@@ -95,7 +99,8 @@ const TRATAMIENTOS: Record<string, string> = {
   NO_APLICA: 'No aplica',
 }
 
-const API_URL = 'http://localhost:3000'
+const API_URL =
+  'https://crm-rrhh-backend.onrender.com'
 
 function obtenerToken() {
   return localStorage.getItem('token')
@@ -104,24 +109,41 @@ function obtenerToken() {
 function formatearFecha(fecha: string) {
   if (!fecha) return '-'
 
-  const partes = fecha.split('T')[0].split('-')
+  const partes = fecha
+    .split('T')[0]
+    .split('-')
 
   if (partes.length !== 3) return fecha
 
   return `${partes[2]}/${partes[1]}/${partes[0]}`
 }
 
-function calcularDias(inicio: string, fin: string) {
+function calcularDias(
+  inicio: string,
+  fin: string
+) {
   if (!inicio || !fin) return 0
 
-  const fechaInicio = new Date(`${inicio}T00:00:00`)
-  const fechaFin = new Date(`${fin}T00:00:00`)
+  const fechaInicio = new Date(
+    `${inicio}T00:00:00`
+  )
 
-  const diferencia = fechaFin.getTime() - fechaInicio.getTime()
+  const fechaFin = new Date(
+    `${fin}T00:00:00`
+  )
+
+  const diferencia =
+    fechaFin.getTime() -
+    fechaInicio.getTime()
 
   if (diferencia < 0) return 0
 
-  return Math.floor(diferencia / (1000 * 60 * 60 * 24)) + 1
+  return (
+    Math.floor(
+      diferencia /
+        (1000 * 60 * 60 * 24)
+    ) + 1
+  )
 }
 
 function iniciales(nombre: string) {
@@ -175,12 +197,30 @@ function colorEstado(estado: string) {
 }
 
 function colorCalendario(tipo: string) {
-  if (tipo.includes('INCAPACIDAD')) return 'bg-rose-400 text-white'
-  if (tipo === 'VACACIONES') return 'bg-emerald-400 text-white'
-  if (tipo.includes('LICENCIA')) return 'bg-violet-400 text-white'
-  if (tipo.includes('PERMISO')) return 'bg-amber-400 text-white'
-  if (tipo === 'RETIRO') return 'bg-red-400 text-white'
-  if (tipo === 'INGRESO') return 'bg-blue-400 text-white'
+  if (tipo.includes('INCAPACIDAD')) {
+    return 'bg-rose-400 text-white'
+  }
+
+  if (tipo === 'VACACIONES') {
+    return 'bg-emerald-400 text-white'
+  }
+
+  if (tipo.includes('LICENCIA')) {
+    return 'bg-violet-400 text-white'
+  }
+
+  if (tipo.includes('PERMISO')) {
+    return 'bg-amber-400 text-white'
+  }
+
+  if (tipo === 'RETIRO') {
+    return 'bg-red-400 text-white'
+  }
+
+  if (tipo === 'INGRESO') {
+    return 'bg-blue-400 text-white'
+  }
+
   return 'bg-slate-400 text-white'
 }
 
@@ -200,12 +240,19 @@ function nombrePeriodo(periodo: string) {
 
   const [anio, mes] = periodo.split('-')
 
-  const fecha = new Date(Number(anio), Number(mes) - 1, 1)
+  const fecha = new Date(
+    Number(anio),
+    Number(mes) - 1,
+    1
+  )
 
-  return fecha.toLocaleDateString('es-CO', {
-    month: 'long',
-    year: 'numeric',
-  })
+  return fecha.toLocaleDateString(
+    'es-CO',
+    {
+      month: 'long',
+      year: 'numeric',
+    }
+  )
 }
 
 function periodoActual() {
@@ -238,7 +285,8 @@ function generarPeriodos() {
 }
 
 function diasDelMes(periodo: string) {
-  const [anio, mes] = periodo.split('-').map(Number)
+  const [anio, mes] =
+    periodo.split('-').map(Number)
 
   return new Date(anio, mes, 0).getDate()
 }
@@ -247,49 +295,132 @@ function fechaDentroDeNovedad(
   novedad: Novedad,
   fecha: string
 ) {
-  const inicio = novedad.fecha_inicio.split('T')[0]
-  const fin = novedad.fecha_fin.split('T')[0]
+  const inicio =
+    novedad.fecha_inicio.split('T')[0]
 
-  return fecha >= inicio && fecha <= fin
+  const fin =
+    novedad.fecha_fin.split('T')[0]
+
+  return (
+    fecha >= inicio &&
+    fecha <= fin
+  )
 }
 
-export default function Novedades({ employees }: Props) {
-  const [novedades, setNovedades] = useState<Novedad[]>([])
-  const [cargando, setCargando] = useState(true)
-  const [error, setError] = useState('')
+function novedadCruzaPeriodo(
+  novedad: Novedad,
+  periodo: string
+) {
+  const [anio, mes] =
+    periodo.split('-').map(Number)
 
-  const [mostrarModal, setMostrarModal] = useState(false)
-  const [editando, setEditando] = useState<Novedad | null>(null)
+  const primerDia = `${anio}-${String(
+    mes
+  ).padStart(2, '0')}-01`
 
-  const [vista, setVista] = useState<'lista' | 'mensual'>('lista')
+  const ultimoDia = `${anio}-${String(
+    mes
+  ).padStart(2, '0')}-${String(
+    new Date(anio, mes, 0).getDate()
+  ).padStart(2, '0')}`
 
-  const [periodo, setPeriodo] = useState(periodoActual())
-  const [busqueda, setBusqueda] = useState('')
-  const [filtroSede, setFiltroSede] = useState('TODAS')
-  const [filtroTipo, setFiltroTipo] = useState('TODAS')
-  const [filtroEstado, setFiltroEstado] = useState('TODAS')
+  const inicio =
+    novedad.fecha_inicio.split('T')[0]
 
-  const [empleadoId, setEmpleadoId] = useState('')
-  const [tipoNovedad, setTipoNovedad] = useState('')
-  const [fechaInicio, setFechaInicio] = useState('')
-  const [fechaFin, setFechaFin] = useState('')
-  const [estado, setEstado] = useState('PENDIENTE')
-  const [afectaNomina, setAfectaNomina] = useState(true)
-  const [tratamientoNomina, setTratamientoNomina] = useState('')
-  const [valor, setValor] = useState('')
-  const [observacion, setObservacion] = useState('')
-  const [observacionNomina, setObservacionNomina] = useState('')
-  const [soporteUrl, setSoporteUrl] = useState('')
+  const fin =
+    novedad.fecha_fin.split('T')[0]
 
-  const [guardando, setGuardando] = useState(false)
-  const [seleccionada, setSeleccionada] = useState<Novedad | null>(null)
+  return inicio <= ultimoDia && fin >= primerDia
+}
 
-  const [pagina, setPagina] = useState(1)
+export default function Novedades({
+  employees,
+}: Props) {
+  const [novedades, setNovedades] =
+    useState<Novedad[]>([])
+
+  const [cargando, setCargando] =
+    useState(true)
+
+  const [error, setError] =
+    useState('')
+
+  const [mostrarModal, setMostrarModal] =
+    useState(false)
+
+  const [editando, setEditando] =
+    useState<Novedad | null>(null)
+
+  const [vista, setVista] =
+    useState<'lista' | 'mensual'>(
+      'lista'
+    )
+
+  const [periodo, setPeriodo] =
+    useState(periodoActual())
+
+  const [busqueda, setBusqueda] =
+    useState('')
+
+  const [filtroSede, setFiltroSede] =
+    useState('TODAS')
+
+  const [filtroTipo, setFiltroTipo] =
+    useState('TODAS')
+
+  const [filtroEstado, setFiltroEstado] =
+    useState('TODAS')
+
+  const [empleadoId, setEmpleadoId] =
+    useState('')
+
+  const [tipoNovedad, setTipoNovedad] =
+    useState('')
+
+  const [fechaInicio, setFechaInicio] =
+    useState('')
+
+  const [fechaFin, setFechaFin] =
+    useState('')
+
+  const [estado, setEstado] =
+    useState('PENDIENTE')
+
+  const [afectaNomina, setAfectaNomina] =
+    useState(true)
+
+  const [tratamientoNomina, setTratamientoNomina] =
+    useState('')
+
+  const [valor, setValor] =
+    useState('')
+
+  const [observacion, setObservacion] =
+    useState('')
+
+  const [observacionNomina, setObservacionNomina] =
+    useState('')
+
+  const [soporteUrl, setSoporteUrl] =
+    useState('')
+
+  const [guardando, setGuardando] =
+    useState(false)
+
+  const [seleccionada, setSeleccionada] =
+    useState<Novedad | null>(null)
+
+  const [pagina, setPagina] =
+    useState(1)
 
   const POR_PAGINA = 5
 
   const diasCalculados = useMemo(
-    () => calcularDias(fechaInicio, fechaFin),
+    () =>
+      calcularDias(
+        fechaInicio,
+        fechaFin
+      ),
     [fechaInicio, fechaFin]
   )
 
@@ -300,6 +431,12 @@ export default function Novedades({ employees }: Props) {
 
       const token = obtenerToken()
 
+      if (!token) {
+        throw new Error(
+          'No se encontró la sesión. Vuelve a iniciar sesión.'
+        )
+      }
+
       const respuesta = await fetch(
         `${API_URL}/api/novedades-nomina`,
         {
@@ -309,16 +446,31 @@ export default function Novedades({ employees }: Props) {
         }
       )
 
-      const datos = await respuesta.json()
+      const texto = await respuesta.text()
+
+      let datos: any = {}
+
+      try {
+        datos = texto
+          ? JSON.parse(texto)
+          : {}
+      } catch {
+        datos = {}
+      }
 
       if (!respuesta.ok) {
         throw new Error(
           datos.mensaje ||
-            'No se pudieron cargar las novedades'
+            datos.message ||
+            `Error ${respuesta.status}: ${respuesta.statusText}`
         )
       }
 
-      setNovedades(datos)
+      setNovedades(
+        Array.isArray(datos)
+          ? datos
+          : datos.novedades || []
+      )
     } catch (err) {
       setError(
         err instanceof Error
@@ -351,35 +503,75 @@ export default function Novedades({ employees }: Props) {
 
   function abrirNueva() {
     limpiarFormulario()
+    setError('')
     setMostrarModal(true)
   }
 
-  function abrirEditar(novedad: Novedad) {
+  function abrirEditar(
+    novedad: Novedad
+  ) {
+    setError('')
     setEditando(novedad)
-    setEmpleadoId(String(novedad.empleado_id))
-    setTipoNovedad(novedad.tipo_novedad)
+
+    setEmpleadoId(
+      String(novedad.empleado_id)
+    )
+
+    setTipoNovedad(
+      novedad.tipo_novedad
+    )
+
     setFechaInicio(
-      novedad.fecha_inicio?.split('T')[0] || ''
+      novedad.fecha_inicio?.split(
+        'T'
+      )[0] || ''
     )
+
     setFechaFin(
-      novedad.fecha_fin?.split('T')[0] || ''
+      novedad.fecha_fin?.split(
+        'T'
+      )[0] || ''
     )
+
     setEstado(novedad.estado)
-    setAfectaNomina(novedad.afecta_nomina)
-    setTratamientoNomina(
-      novedad.tratamiento_nomina || ''
+
+    setAfectaNomina(
+      Boolean(novedad.afecta_nomina)
     )
+
+    setTratamientoNomina(
+      novedad.afecta_nomina
+        ? novedad.tratamiento_nomina ||
+            ''
+        : 'NO_APLICA'
+    )
+
     setValor(
       novedad.valor !== null &&
         novedad.valor !== undefined
         ? String(novedad.valor)
         : ''
     )
-    setObservacion(novedad.observacion || '')
-    setObservacionNomina(
-      novedad.observacion_nomina || ''
+
+    setObservacion(
+      novedad.observacion || ''
     )
-    setSoporteUrl(novedad.soporte_url || '')
+
+    setObservacionNomina(
+      novedad.observacion_nomina ||
+        ''
+    )
+
+    setSoporteUrl(
+      novedad.soporte_url || ''
+    )
+
+    if (novedad.periodo_nomina) {
+      setPeriodo(
+        novedad.periodo_nomina
+      )
+    }
+
     setMostrarModal(true)
   }
 
@@ -390,10 +582,26 @@ export default function Novedades({ employees }: Props) {
     limpiarFormulario()
   }
 
+  function cambiarAfectaNomina(
+    valorNuevo: boolean
+  ) {
+    setAfectaNomina(valorNuevo)
+
+    if (!valorNuevo) {
+      setTratamientoNomina(
+        'NO_APLICA'
+      )
+    } else {
+      setTratamientoNomina('')
+    }
+  }
+
   async function guardarNovedad(
     e: React.FormEvent
   ) {
     e.preventDefault()
+
+    setError('')
 
     if (
       !empleadoId ||
@@ -401,63 +609,146 @@ export default function Novedades({ employees }: Props) {
       !fechaInicio ||
       !fechaFin
     ) {
-      setError('Completa los campos obligatorios.')
+      setError(
+        'Completa todos los campos obligatorios.'
+      )
+      return
+    }
+
+    if (fechaFin < fechaInicio) {
+      setError(
+        'La fecha final no puede ser anterior a la fecha inicial.'
+      )
       return
     }
 
     if (diasCalculados <= 0) {
       setError(
-        'La fecha final debe ser igual o posterior a la fecha inicial.'
+        'El rango de fechas no es válido.'
+      )
+      return
+    }
+
+    if (
+      valor !== '' &&
+      (
+        Number.isNaN(Number(valor)) ||
+        Number(valor) < 0
+      )
+    ) {
+      setError(
+        'El valor debe ser un número válido mayor o igual a 0.'
+      )
+      return
+    }
+
+    if (
+      afectaNomina &&
+      !tratamientoNomina
+    ) {
+      setError(
+        'Selecciona el tratamiento de nómina porque esta novedad afecta la nómina.'
       )
       return
     }
 
     try {
       setGuardando(true)
-      setError('')
 
       const token = obtenerToken()
 
+      if (!token) {
+        throw new Error(
+          'La sesión ha expirado. Vuelve a iniciar sesión.'
+        )
+      }
+
       const cuerpo = {
-        empleado_id: Number(empleadoId),
-        tipo_novedad: tipoNovedad,
-        fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin,
+        empleado_id: Number(
+          empleadoId
+        ),
+
+        tipo_novedad:
+          tipoNovedad,
+
+        fecha_inicio:
+          fechaInicio,
+
+        fecha_fin:
+          fechaFin,
+
         estado,
-        afecta_nomina: afectaNomina,
+
+        afecta_nomina:
+          afectaNomina,
+
         tratamiento_nomina:
-          tratamientoNomina || null,
-        observacion: observacion || null,
-        periodo_nomina: periodo,
+          afectaNomina
+            ? tratamientoNomina
+            : 'NO_APLICA',
+
+        observacion:
+          observacion.trim() ||
+          null,
+
+        periodo_nomina:
+          periodo,
+
         valor:
           valor !== ''
             ? Number(valor)
             : null,
+
         observacion_nomina:
-          observacionNomina || null,
+          observacionNomina.trim() ||
+          null,
+
         soporte_url:
-          soporteUrl || null,
+          soporteUrl.trim() ||
+          null,
       }
 
       const url = editando
         ? `${API_URL}/api/novedades-nomina/${editando.id}`
         : `${API_URL}/api/novedades-nomina`
 
-      const respuesta = await fetch(url, {
-        method: editando ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(cuerpo),
-      })
+      const respuesta =
+        await fetch(url, {
+          method: editando
+            ? 'PUT'
+            : 'POST',
 
-      const datos = await respuesta.json()
+          headers: {
+            'Content-Type':
+              'application/json',
+
+            Authorization: `Bearer ${token}`,
+          },
+
+          body: JSON.stringify(
+            cuerpo
+          ),
+        })
+
+      const texto =
+        await respuesta.text()
+
+      let datos: any = {}
+
+      try {
+        datos = texto
+          ? JSON.parse(texto)
+          : {}
+      } catch {
+        datos = {}
+      }
 
       if (!respuesta.ok) {
         throw new Error(
           datos.mensaje ||
-            'No se pudo guardar la novedad'
+            datos.message ||
+            datos.error ||
+            `Error ${respuesta.status}: ${respuesta.statusText}`
         )
       }
 
@@ -479,37 +770,62 @@ export default function Novedades({ employees }: Props) {
   async function eliminarNovedad(
     novedad: Novedad
   ) {
-    const confirmar = window.confirm(
-      `¿Seguro que deseas eliminar la novedad de ${novedad.empleado_nombre}?`
-    )
+    const confirmar =
+      window.confirm(
+        `¿Seguro que deseas eliminar la novedad de ${novedad.empleado_nombre}?`
+      )
 
     if (!confirmar) return
 
     try {
       setError('')
 
-      const token = obtenerToken()
+      const token =
+        obtenerToken()
 
-      const respuesta = await fetch(
-        `${API_URL}/api/novedades-nomina/${novedad.id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
+      if (!token) {
+        throw new Error(
+          'La sesión ha expirado. Vuelve a iniciar sesión.'
+        )
+      }
 
-      const datos = await respuesta.json()
+      const respuesta =
+        await fetch(
+          `${API_URL}/api/novedades-nomina/${novedad.id}`,
+          {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        )
+
+      const texto =
+        await respuesta.text()
+
+      let datos: any = {}
+
+      try {
+        datos = texto
+          ? JSON.parse(texto)
+          : {}
+      } catch {
+        datos = {}
+      }
 
       if (!respuesta.ok) {
         throw new Error(
           datos.mensaje ||
-            'No se pudo eliminar la novedad'
+            datos.message ||
+            datos.error ||
+            `Error ${respuesta.status}: ${respuesta.statusText}`
         )
       }
 
-      if (seleccionada?.id === novedad.id) {
+      if (
+        seleccionada?.id ===
+        novedad.id
+      ) {
         setSeleccionada(null)
       }
 
@@ -524,73 +840,95 @@ export default function Novedades({ employees }: Props) {
   }
 
   const sedes = useMemo(() => {
-    const mapa = new Map<number, string>()
+    const mapa = new Map<
+      number,
+      string
+    >()
 
-    novedades.forEach((novedad) => {
-      if (novedad.sede_id) {
-        mapa.set(
-          novedad.sede_id,
-          novedad.sede_nombre || `Sede ${novedad.sede_id}`
-        )
+    novedades.forEach(
+      (novedad) => {
+        if (novedad.sede_id) {
+          mapa.set(
+            novedad.sede_id,
+            novedad.sede_nombre ||
+              `Sede ${novedad.sede_id}`
+          )
+        }
       }
-    })
+    )
 
-    return Array.from(mapa.entries()).sort(
-      (a, b) => a[1].localeCompare(b[1])
+    return Array.from(
+      mapa.entries()
+    ).sort((a, b) =>
+      a[1].localeCompare(b[1])
     )
   }, [novedades])
 
-  const novedadesFiltradas = useMemo(() => {
-    const texto = busqueda
-      .trim()
-      .toLowerCase()
-
-    return novedades.filter((novedad) => {
-      const coincideBusqueda =
-        !texto ||
-        novedad.empleado_nombre
+  const novedadesFiltradas =
+    useMemo(() => {
+      const texto =
+        busqueda
+          .trim()
           .toLowerCase()
-          .includes(texto) ||
-        novedad.documento
-          ?.toLowerCase()
-          .includes(texto)
 
-      const coincideSede =
-        filtroSede === 'TODAS' ||
-        String(novedad.sede_id) === filtroSede
+      return novedades.filter(
+        (novedad) => {
+          const coincideBusqueda =
+            !texto ||
+            novedad.empleado_nombre
+              .toLowerCase()
+              .includes(texto) ||
+            novedad.documento
+              ?.toLowerCase()
+              .includes(texto)
 
-      const coincideTipo =
-        filtroTipo === 'TODAS' ||
-        novedad.tipo_novedad === filtroTipo
+          const coincideSede =
+            filtroSede ===
+              'TODAS' ||
+            String(
+              novedad.sede_id
+            ) === filtroSede
 
-      const coincideEstado =
-        filtroEstado === 'TODAS' ||
-        novedad.estado === filtroEstado
+          const coincideTipo =
+            filtroTipo ===
+              'TODAS' ||
+            novedad.tipo_novedad ===
+              filtroTipo
 
-      const coincidePeriodo =
-        !periodo ||
-        novedad.periodo_nomina === periodo ||
-        (
-          !novedad.periodo_nomina &&
-          novedad.fecha_inicio.startsWith(periodo)
-        )
+          const coincideEstado =
+            filtroEstado ===
+              'TODAS' ||
+            novedad.estado ===
+              filtroEstado
 
-      return (
-        coincideBusqueda &&
-        coincideSede &&
-        coincideTipo &&
-        coincideEstado &&
-        coincidePeriodo
+          const coincidePeriodo =
+            novedad.periodo_nomina ===
+              periodo ||
+            (
+              !novedad.periodo_nomina &&
+              novedadCruzaPeriodo(
+                novedad,
+                periodo
+              )
+            )
+
+          return (
+            coincideBusqueda &&
+            coincideSede &&
+            coincideTipo &&
+            coincideEstado &&
+            coincidePeriodo
+          )
+        }
       )
-    })
-  }, [
-    novedades,
-    busqueda,
-    filtroSede,
-    filtroTipo,
-    filtroEstado,
-    periodo,
-  ])
+    }, [
+      novedades,
+      busqueda,
+      filtroSede,
+      filtroTipo,
+      filtroEstado,
+      periodo,
+    ])
 
   useEffect(() => {
     setPagina(1)
@@ -602,111 +940,188 @@ export default function Novedades({ employees }: Props) {
     periodo,
   ])
 
-  const totalPaginas = Math.max(
-    1,
-    Math.ceil(
-      novedadesFiltradas.length / POR_PAGINA
-    )
-  )
-
-  const novedadesPagina = novedadesFiltradas.slice(
-    (pagina - 1) * POR_PAGINA,
-    pagina * POR_PAGINA
-  )
-
-  const novedadesPeriodo = novedades.filter(
-    (novedad) =>
-      novedad.periodo_nomina === periodo ||
-      (
-        !novedad.periodo_nomina &&
-        novedad.fecha_inicio.startsWith(periodo)
+  const totalPaginas =
+    Math.max(
+      1,
+      Math.ceil(
+        novedadesFiltradas.length /
+          POR_PAGINA
       )
-  )
+    )
+
+  const novedadesPagina =
+    novedadesFiltradas.slice(
+      (pagina - 1) *
+        POR_PAGINA,
+      pagina * POR_PAGINA
+    )
+
+  const novedadesPeriodo =
+    novedades.filter(
+      (novedad) =>
+        novedad.periodo_nomina ===
+          periodo ||
+        (
+          !novedad.periodo_nomina &&
+          novedadCruzaPeriodo(
+            novedad,
+            periodo
+          )
+        )
+    )
 
   const totalIncapacidades =
-    novedadesPeriodo.filter((novedad) =>
-      novedad.tipo_novedad.includes(
-        'INCAPACIDAD'
-      )
+    novedadesPeriodo.filter(
+      (novedad) =>
+        novedad.tipo_novedad.includes(
+          'INCAPACIDAD'
+        )
     ).length
 
   const totalVacaciones =
     novedadesPeriodo.filter(
       (novedad) =>
-        novedad.tipo_novedad === 'VACACIONES'
+        novedad.tipo_novedad ===
+        'VACACIONES'
     ).length
 
   const totalRetiros =
     novedadesPeriodo.filter(
       (novedad) =>
-        novedad.tipo_novedad === 'RETIRO'
+        novedad.tipo_novedad ===
+        'RETIRO'
     ).length
 
   const totalIngresos =
     novedadesPeriodo.filter(
       (novedad) =>
-        novedad.tipo_novedad === 'INGRESO'
+        novedad.tipo_novedad ===
+        'INGRESO'
     ).length
 
-  const diasMes = diasDelMes(periodo)
+  const diasMes =
+    diasDelMes(periodo)
 
-  const empleadosMensual = useMemo(() => {
-    const mapa = new Map<
-      number,
-      {
-        empleado_id: number
-        nombre: string
-        documento: string
-        sede: string
-        novedades: Novedad[]
-      }
-    >()
+  const empleadosMensual =
+    useMemo(() => {
+      const mapa = new Map<
+        number,
+        {
+          empleado_id: number
+          nombre: string
+          documento: string
+          sede: string
+          novedades: Novedad[]
+        }
+      >()
 
-    novedadesPeriodo.forEach((novedad) => {
-      if (!mapa.has(novedad.empleado_id)) {
-        mapa.set(novedad.empleado_id, {
-          empleado_id: novedad.empleado_id,
-          nombre: novedad.empleado_nombre,
-          documento: novedad.documento,
-          sede:
-            novedad.sede_nombre ||
-            `Sede ${novedad.sede_id}`,
-          novedades: [],
-        })
-      }
+      /*
+       * Primero agregamos todos los empleados
+       * que vienen del módulo Empleados.
+       * Así la vista mensual no desaparece
+       * cuando un empleado no tiene novedades.
+       */
+      employees.forEach(
+        (employee) => {
+          mapa.set(employee.id, {
+            empleado_id:
+              employee.id,
+            nombre:
+              employee.name,
+            documento:
+              employee.document,
+            sede:
+              employee.sede_id
+                ? `Sede ${employee.sede_id}`
+                : '-',
+            novedades: [],
+          })
+        }
+      )
 
-      mapa
-        .get(novedad.empleado_id)!
-        .novedades.push(novedad)
-    })
+      /*
+       * Después agregamos las novedades
+       * correspondientes al período.
+       */
+      novedadesPeriodo.forEach(
+        (novedad) => {
+          if (
+            !mapa.has(
+              novedad.empleado_id
+            )
+          ) {
+            mapa.set(
+              novedad.empleado_id,
+              {
+                empleado_id:
+                  novedad.empleado_id,
+                nombre:
+                  novedad.empleado_nombre,
+                documento:
+                  novedad.documento,
+                sede:
+                  novedad.sede_nombre ||
+                  `Sede ${novedad.sede_id}`,
+                novedades: [],
+              }
+            )
+          }
 
-    return Array.from(mapa.values())
-  }, [novedadesPeriodo])
+          mapa
+            .get(
+              novedad.empleado_id
+            )!
+            .novedades.push(
+              novedad
+            )
+        }
+      )
 
-  const periodos = generarPeriodos()
+      return Array.from(
+        mapa.values()
+      ).sort((a, b) =>
+        a.nombre.localeCompare(
+          b.nombre
+        )
+      )
+    }, [
+      employees,
+      novedadesPeriodo,
+    ])
 
-  function fechaDelDia(dia: number) {
-    return `${periodo}-${String(dia).padStart(
-      2,
-      '0'
-    )}`
+  const periodos =
+    generarPeriodos()
+
+  function fechaDelDia(
+    dia: number
+  ) {
+    return `${periodo}-${String(
+      dia
+    ).padStart(2, '0')}`
   }
 
   function obtenerNovedadDia(
     novedadesEmpleado: Novedad[],
     dia: number
   ) {
-    const fecha = fechaDelDia(dia)
+    const fecha =
+      fechaDelDia(dia)
 
-    return novedadesEmpleado.find((novedad) =>
-      fechaDentroDeNovedad(novedad, fecha)
+    return novedadesEmpleado.find(
+      (novedad) =>
+        fechaDentroDeNovedad(
+          novedad,
+          fecha
+        )
     )
   }
 
-  const empleadoSeleccionado = employees.find(
-    (employee) =>
-      String(employee.id) === empleadoId
-  )
+  const empleadoSeleccionado =
+    employees.find(
+      (employee) =>
+        String(employee.id) ===
+        empleadoId
+    )
 
   return (
     <div className="min-h-full bg-slate-50/40 p-1">
@@ -715,9 +1130,11 @@ export default function Novedades({ employees }: Props) {
         <span className="font-medium text-slate-500">
           Nómina
         </span>
+
         <span className="text-slate-300">
           /
         </span>
+
         <span className="font-semibold text-slate-800">
           Novedades de Nómina
         </span>
@@ -752,8 +1169,9 @@ export default function Novedades({ employees }: Props) {
             </h1>
 
             <p className="mt-1 text-sm text-slate-500">
-              Gestiona y da seguimiento a las novedades
-              de nómina de tus empleados.
+              Gestiona y da seguimiento a
+              las novedades de nómina de
+              tus empleados.
             </p>
           </div>
         </div>
@@ -761,24 +1179,30 @@ export default function Novedades({ employees }: Props) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-slate-500">
-              Periodo:
+              Período:
             </span>
 
             <select
               value={periodo}
               onChange={(e) =>
-                setPeriodo(e.target.value)
+                setPeriodo(
+                  e.target.value
+                )
               }
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             >
-              {periodos.map((item) => (
-                <option
-                  key={item}
-                  value={item}
-                >
-                  {nombrePeriodo(item)}
-                </option>
-              ))}
+              {periodos.map(
+                (item) => (
+                  <option
+                    key={item}
+                    value={item}
+                  >
+                    {nombrePeriodo(
+                      item
+                    )}
+                  </option>
+                )
+              )}
             </select>
           </div>
 
@@ -789,6 +1213,7 @@ export default function Novedades({ employees }: Props) {
             <span className="text-lg leading-none">
               +
             </span>
+
             Nueva novedad
           </button>
         </div>
@@ -800,7 +1225,9 @@ export default function Novedades({ employees }: Props) {
           <span>{error}</span>
 
           <button
-            onClick={() => setError('')}
+            onClick={() =>
+              setError('')
+            }
             className="font-bold text-red-500"
           >
             ×
@@ -836,8 +1263,11 @@ export default function Novedades({ employees }: Props) {
               <p className="text-xs text-slate-500">
                 Total novedades
               </p>
+
               <p className="mt-1 text-2xl font-bold text-slate-800">
-                {novedadesPeriodo.length}
+                {
+                  novedadesPeriodo.length
+                }
               </p>
             </div>
           </div>
@@ -870,6 +1300,7 @@ export default function Novedades({ employees }: Props) {
               <p className="text-xs text-slate-500">
                 Incapacidades
               </p>
+
               <p className="mt-1 text-2xl font-bold text-slate-800">
                 {totalIncapacidades}
               </p>
@@ -903,6 +1334,7 @@ export default function Novedades({ employees }: Props) {
               <p className="text-xs text-slate-500">
                 Vacaciones
               </p>
+
               <p className="mt-1 text-2xl font-bold text-slate-800">
                 {totalVacaciones}
               </p>
@@ -936,6 +1368,7 @@ export default function Novedades({ employees }: Props) {
               <p className="text-xs text-slate-500">
                 Retiros
               </p>
+
               <p className="mt-1 text-2xl font-bold text-slate-800">
                 {totalRetiros}
               </p>
@@ -962,6 +1395,7 @@ export default function Novedades({ employees }: Props) {
               <p className="text-xs text-slate-500">
                 Ingresos
               </p>
+
               <p className="mt-1 text-2xl font-bold text-slate-800">
                 {totalIngresos}
               </p>
@@ -983,14 +1417,20 @@ export default function Novedades({ employees }: Props) {
               stroke="currentColor"
               strokeWidth="2"
             >
-              <circle cx="11" cy="11" r="7" />
+              <circle
+                cx="11"
+                cy="11"
+                r="7"
+              />
               <path d="m20 20-4-4" />
             </svg>
 
             <input
               value={busqueda}
               onChange={(e) =>
-                setBusqueda(e.target.value)
+                setBusqueda(
+                  e.target.value
+                )
               }
               placeholder="Buscar empleado..."
               className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
@@ -1000,26 +1440,34 @@ export default function Novedades({ employees }: Props) {
           <select
             value={filtroSede}
             onChange={(e) =>
-              setFiltroSede(e.target.value)
+              setFiltroSede(
+                e.target.value
+              )
             }
             className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
           >
-            <option value="TODAS">Todas las sedes</option>
+            <option value="TODAS">
+              Todas las sedes
+            </option>
 
-            {sedes.map(([id, nombre]) => (
-              <option
-                key={id}
-                value={id}
-              >
-                {nombre}
-              </option>
-            ))}
+            {sedes.map(
+              ([id, nombre]) => (
+                <option
+                  key={id}
+                  value={id}
+                >
+                  {nombre}
+                </option>
+              )
+            )}
           </select>
 
           <select
             value={filtroTipo}
             onChange={(e) =>
-              setFiltroTipo(e.target.value)
+              setFiltroTipo(
+                e.target.value
+              )
             }
             className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
           >
@@ -1027,20 +1475,26 @@ export default function Novedades({ employees }: Props) {
               Todos los tipos
             </option>
 
-            {TIPOS_NOVEDAD.map((tipo) => (
-              <option
-                key={tipo}
-                value={tipo}
-              >
-                {TIPOS_LABEL[tipo]}
-              </option>
-            ))}
+            {TIPOS_NOVEDAD.map(
+              (tipo) => (
+                <option
+                  key={tipo}
+                  value={tipo}
+                >
+                  {TIPOS_LABEL[
+                    tipo
+                  ]}
+                </option>
+              )
+            )}
           </select>
 
           <select
             value={filtroEstado}
             onChange={(e) =>
-              setFiltroEstado(e.target.value)
+              setFiltroEstado(
+                e.target.value
+              )
             }
             className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
           >
@@ -1048,20 +1502,28 @@ export default function Novedades({ employees }: Props) {
               Todos los estados
             </option>
 
-            {ESTADOS.map((item) => (
-              <option
-                key={item}
-                value={item}
-              >
-                {ESTADO_LABEL[item]}
-              </option>
-            ))}
+            {ESTADOS.map(
+              (item) => (
+                <option
+                  key={item}
+                  value={item}
+                >
+                  {
+                    ESTADO_LABEL[
+                      item
+                    ]
+                  }
+                </option>
+              )
+            )}
           </select>
         </div>
 
         <div className="mt-3 flex items-center justify-end gap-2">
           <button
-            onClick={() => setVista('lista')}
+            onClick={() =>
+              setVista('lista')
+            }
             className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${
               vista === 'lista'
                 ? 'border-blue-200 bg-blue-50 text-blue-700'
@@ -1079,11 +1541,14 @@ export default function Novedades({ employees }: Props) {
               <path d="M8 6h13M8 12h13M8 18h13" />
               <path d="M3 6h.01M3 12h.01M3 18h.01" />
             </svg>
+
             Vista lista
           </button>
 
           <button
-            onClick={() => setVista('mensual')}
+            onClick={() =>
+              setVista('mensual')
+            }
             className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${
               vista === 'mensual'
                 ? 'border-blue-200 bg-blue-50 text-blue-700'
@@ -1107,6 +1572,7 @@ export default function Novedades({ employees }: Props) {
               />
               <path d="M3 9h18M8 2v4M16 2v4" />
             </svg>
+
             Vista mensual
           </button>
         </div>
@@ -1119,12 +1585,14 @@ export default function Novedades({ employees }: Props) {
             <div className="flex min-h-[300px] items-center justify-center">
               <div className="text-center">
                 <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+
                 <p className="mt-3 text-sm text-slate-500">
                   Cargando novedades...
                 </p>
               </div>
             </div>
-          ) : novedadesPagina.length === 0 ? (
+          ) : novedadesPagina.length ===
+            0 ? (
             <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                 <svg
@@ -1147,11 +1615,13 @@ export default function Novedades({ employees }: Props) {
               </div>
 
               <h3 className="mt-4 font-semibold text-slate-700">
-                No hay novedades registradas
+                No hay novedades
+                registradas
               </h3>
 
               <p className="mt-1 text-sm text-slate-500">
-                No encontramos novedades para los
+                No encontramos
+                novedades para los
                 filtros seleccionados.
               </p>
 
@@ -1181,7 +1651,11 @@ export default function Novedades({ employees }: Props) {
                       </th>
 
                       <th className="px-4 py-3">
-                        Periodo
+                        Fechas
+                      </th>
+
+                      <th className="px-4 py-3">
+                        Período nómina
                       </th>
 
                       <th className="px-4 py-3 text-center">
@@ -1210,7 +1684,9 @@ export default function Novedades({ employees }: Props) {
                     {novedadesPagina.map(
                       (novedad) => (
                         <tr
-                          key={novedad.id}
+                          key={
+                            novedad.id
+                          }
                           className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60"
                         >
                           <td className="px-4 py-3">
@@ -1250,7 +1726,8 @@ export default function Novedades({ employees }: Props) {
                               )}`}
                             >
                               {TIPOS_LABEL[
-                                novedad.tipo_novedad
+                                novedad
+                                  .tipo_novedad
                               ] ||
                                 novedad.tipo_novedad}
                             </span>
@@ -1268,6 +1745,16 @@ export default function Novedades({ employees }: Props) {
                             </p>
                           </td>
 
+                          <td className="px-4 py-3">
+                            <p className="text-xs font-medium capitalize text-slate-600">
+                              {novedad.periodo_nomina
+                                ? nombrePeriodo(
+                                    novedad.periodo_nomina
+                                  )
+                                : '-'}
+                            </p>
+                          </td>
+
                           <td className="px-4 py-3 text-center text-sm font-semibold text-slate-700">
                             {novedad.dias}
                           </td>
@@ -1279,7 +1766,8 @@ export default function Novedades({ employees }: Props) {
                               )}`}
                             >
                               {ESTADO_LABEL[
-                                novedad.estado
+                                novedad
+                                  .estado
                               ] ||
                                 novedad.estado}
                             </span>
@@ -1392,17 +1880,28 @@ export default function Novedades({ employees }: Props) {
               <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
                 <p className="text-xs text-slate-500">
                   Mostrando{' '}
-                  {novedadesPagina.length} de{' '}
-                  {novedadesFiltradas.length}{' '}
+                  {
+                    novedadesPagina.length
+                  }{' '}
+                  de{' '}
+                  {
+                    novedadesFiltradas.length
+                  }{' '}
                   novedades
                 </p>
 
                 <div className="flex items-center gap-1">
                   <button
-                    disabled={pagina === 1}
+                    disabled={
+                      pagina === 1
+                    }
                     onClick={() =>
-                      setPagina((p) =>
-                        Math.max(1, p - 1)
+                      setPagina(
+                        (p) =>
+                          Math.max(
+                            1,
+                            p - 1
+                          )
                       )
                     }
                     className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 disabled:opacity-40"
@@ -1411,34 +1910,44 @@ export default function Novedades({ employees }: Props) {
                   </button>
 
                   {Array.from(
-                    { length: totalPaginas },
+                    {
+                      length:
+                        totalPaginas,
+                    },
                     (_, i) => i + 1
-                  ).map((item) => (
-                    <button
-                      key={item}
-                      onClick={() =>
-                        setPagina(item)
-                      }
-                      className={`h-8 min-w-8 rounded-md border px-2 text-xs font-medium ${
-                        pagina === item
-                          ? 'border-blue-600 bg-blue-600 text-white'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  ))}
+                  ).map(
+                    (item) => (
+                      <button
+                        key={item}
+                        onClick={() =>
+                          setPagina(
+                            item
+                          )
+                        }
+                        className={`h-8 min-w-8 rounded-md border px-2 text-xs font-medium ${
+                          pagina ===
+                          item
+                            ? 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
 
                   <button
                     disabled={
-                      pagina === totalPaginas
+                      pagina ===
+                      totalPaginas
                     }
                     onClick={() =>
-                      setPagina((p) =>
-                        Math.min(
-                          totalPaginas,
-                          p + 1
-                        )
+                      setPagina(
+                        (p) =>
+                          Math.min(
+                            totalPaginas,
+                            p + 1
+                          )
                       )
                     }
                     className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 disabled:opacity-40"
@@ -1459,12 +1968,15 @@ export default function Novedades({ employees }: Props) {
             <div>
               <h2 className="font-semibold text-slate-800">
                 Vista mensual -{' '}
-                {nombrePeriodo(periodo)}
+                {nombrePeriodo(
+                  periodo
+                )}
               </h2>
 
               <p className="mt-1 text-xs text-slate-500">
-                Visualiza las novedades por empleado y
-                por día del mes.
+                Visualiza las novedades
+                por empleado y por día
+                del mes.
               </p>
             </div>
 
@@ -1509,16 +2021,22 @@ export default function Novedades({ employees }: Props) {
                   </th>
 
                   {Array.from(
-                    { length: diasMes },
-                    (_, i) => i + 1
-                  ).map((dia) => (
-                    <th
-                      key={dia}
-                      className="min-w-[32px] border-r border-slate-100 px-1 py-3 text-center text-[10px] font-semibold text-slate-500"
-                    >
-                      {dia}
-                    </th>
-                  ))}
+                    {
+                      length:
+                        diasMes,
+                    },
+                    (_, i) =>
+                      i + 1
+                  ).map(
+                    (dia) => (
+                      <th
+                        key={dia}
+                        className="min-w-[32px] border-r border-slate-100 px-1 py-3 text-center text-[10px] font-semibold text-slate-500"
+                      >
+                        {dia}
+                      </th>
+                    )
+                  )}
                 </tr>
               </thead>
 
@@ -1527,11 +2045,13 @@ export default function Novedades({ employees }: Props) {
                 0 ? (
                   <tr>
                     <td
-                      colSpan={diasMes + 2}
+                      colSpan={
+                        diasMes + 2
+                      }
                       className="py-16 text-center text-sm text-slate-500"
                     >
-                      No hay novedades registradas
-                      para este período.
+                      No hay empleados
+                      registrados.
                     </td>
                   </tr>
                 ) : (
@@ -1545,61 +2065,75 @@ export default function Novedades({ employees }: Props) {
                       >
                         <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-2">
                           <p className="text-xs font-semibold text-slate-700">
-                            {empleado.nombre}
+                            {
+                              empleado.nombre
+                            }
                           </p>
+
                           <p className="text-[10px] text-slate-400">
-                            {empleado.documento}
+                            {
+                              empleado.documento
+                            }
                           </p>
                         </td>
 
                         <td className="sticky left-[180px] z-10 border-r border-slate-200 bg-white px-3 py-2 text-[10px] font-medium text-slate-600">
-                          {empleado.sede}
+                          {
+                            empleado.sede
+                          }
                         </td>
 
                         {Array.from(
                           {
-                            length: diasMes,
+                            length:
+                              diasMes,
                           },
-                          (_, i) => i + 1
-                        ).map((dia) => {
-                          const novedad =
-                            obtenerNovedadDia(
-                              empleado.novedades,
-                              dia
-                            )
+                          (_, i) =>
+                            i + 1
+                        ).map(
+                          (dia) => {
+                            const novedad =
+                              obtenerNovedadDia(
+                                empleado.novedades,
+                                dia
+                              )
 
-                          return (
-                            <td
-                              key={dia}
-                              className="border-r border-slate-100 p-1 text-center"
-                            >
-                              {novedad ? (
-                                <button
-                                  onClick={() =>
-                                    setSeleccionada(
-                                      novedad
-                                    )
-                                  }
-                                  title={
-                                    TIPOS_LABEL[
-                                      novedad
-                                        .tipo_novedad
-                                    ]
-                                  }
-                                  className={`flex h-6 w-full items-center justify-center rounded text-[9px] font-bold ${colorCalendario(
-                                    novedad.tipo_novedad
-                                  )}`}
-                                >
-                                  {abreviaturaTipo(
-                                    novedad.tipo_novedad
-                                  )}
-                                </button>
-                              ) : (
-                                <span className="block h-6" />
-                              )}
-                            </td>
-                          )
-                        })}
+                            return (
+                              <td
+                                key={
+                                  dia
+                                }
+                                className="border-r border-slate-100 p-1 text-center"
+                              >
+                                {novedad ? (
+                                  <button
+                                    onClick={() =>
+                                      setSeleccionada(
+                                        novedad
+                                      )
+                                    }
+                                    title={
+                                      TIPOS_LABEL[
+                                        novedad
+                                          .tipo_novedad
+                                      ] ||
+                                      novedad.tipo_novedad
+                                    }
+                                    className={`flex h-6 w-full items-center justify-center rounded text-[9px] font-bold ${colorCalendario(
+                                      novedad.tipo_novedad
+                                    )}`}
+                                  >
+                                    {abreviaturaTipo(
+                                      novedad.tipo_novedad
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className="block h-6" />
+                                )}
+                              </td>
+                            )
+                          }
+                        )}
                       </tr>
                     )
                   )
@@ -1623,13 +2157,16 @@ export default function Novedades({ employees }: Props) {
                 </h2>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Registra la información correspondiente
-                  a la novedad.
+                  Registra la información
+                  correspondiente a la
+                  novedad.
                 </p>
               </div>
 
               <button
-                onClick={cerrarModal}
+                onClick={
+                  cerrarModal
+                }
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-xl text-slate-400 hover:bg-slate-100"
               >
                 ×
@@ -1637,7 +2174,9 @@ export default function Novedades({ employees }: Props) {
             </div>
 
             <form
-              onSubmit={guardarNovedad}
+              onSubmit={
+                guardarNovedad
+              }
               className="p-5"
             >
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -1656,7 +2195,9 @@ export default function Novedades({ employees }: Props) {
                     </div>
 
                     <select
-                      value={empleadoId}
+                      value={
+                        empleadoId
+                      }
                       onChange={(e) =>
                         setEmpleadoId(
                           e.target.value
@@ -1666,17 +2207,28 @@ export default function Novedades({ employees }: Props) {
                       required
                     >
                       <option value="">
-                        Buscar empleado...
+                        Seleccionar empleado...
                       </option>
 
                       {employees.map(
-                        (employee) => (
+                        (
+                          employee
+                        ) => (
                           <option
-                            key={employee.id}
-                            value={employee.id}
+                            key={
+                              employee.id
+                            }
+                            value={
+                              employee.id
+                            }
                           >
-                            {employee.name} —{' '}
-                            {employee.document}
+                            {
+                              employee.name
+                            }{' '}
+                            —{' '}
+                            {
+                              employee.document
+                            }
                           </option>
                         )
                       )}
@@ -1712,6 +2264,7 @@ export default function Novedades({ employees }: Props) {
                             <p className="text-slate-400">
                               Cargo
                             </p>
+
                             <p className="mt-1 font-medium text-slate-600">
                               {
                                 empleadoSeleccionado.role
@@ -1723,6 +2276,7 @@ export default function Novedades({ employees }: Props) {
                             <p className="text-slate-400">
                               Estado
                             </p>
+
                             <p className="mt-1 font-medium text-slate-600">
                               {
                                 empleadoSeleccionado.status
@@ -1742,7 +2296,8 @@ export default function Novedades({ employees }: Props) {
                       </span>
 
                       <h3 className="text-sm font-semibold text-slate-700">
-                        Información de la novedad
+                        Información de
+                        la novedad
                       </h3>
                     </div>
 
@@ -1753,7 +2308,9 @@ export default function Novedades({ employees }: Props) {
                         </label>
 
                         <select
-                          value={tipoNovedad}
+                          value={
+                            tipoNovedad
+                          }
                           onChange={(e) =>
                             setTipoNovedad(
                               e.target.value
@@ -1767,10 +2324,16 @@ export default function Novedades({ employees }: Props) {
                           </option>
 
                           {TIPOS_NOVEDAD.map(
-                            (tipo) => (
+                            (
+                              tipo
+                            ) => (
                               <option
-                                key={tipo}
-                                value={tipo}
+                                key={
+                                  tipo
+                                }
+                                value={
+                                  tipo
+                                }
                               >
                                 {
                                   TIPOS_LABEL[
@@ -1791,10 +2354,16 @@ export default function Novedades({ employees }: Props) {
 
                           <input
                             type="date"
-                            value={fechaInicio}
-                            onChange={(e) =>
+                            value={
+                              fechaInicio
+                            }
+                            onChange={(
+                              e
+                            ) =>
                               setFechaInicio(
-                                e.target.value
+                                e
+                                  .target
+                                  .value
                               )
                             }
                             className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs outline-none focus:border-blue-400"
@@ -1809,14 +2378,20 @@ export default function Novedades({ employees }: Props) {
 
                           <input
                             type="date"
-                            value={fechaFin}
+                            value={
+                              fechaFin
+                            }
                             min={
                               fechaInicio ||
                               undefined
                             }
-                            onChange={(e) =>
+                            onChange={(
+                              e
+                            ) =>
                               setFechaFin(
-                                e.target.value
+                                e
+                                  .target
+                                  .value
                               )
                             }
                             className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs outline-none focus:border-blue-400"
@@ -1831,7 +2406,9 @@ export default function Novedades({ employees }: Props) {
 
                           <div className="flex h-[38px] items-center rounded-lg bg-blue-50 px-3">
                             <span className="font-bold text-blue-600">
-                              {diasCalculados}
+                              {
+                                diasCalculados
+                              }
                             </span>
 
                             <span className="ml-1 text-xs text-blue-500">
@@ -1850,19 +2427,31 @@ export default function Novedades({ employees }: Props) {
                         </label>
 
                         <select
-                          value={estado}
-                          onChange={(e) =>
+                          value={
+                            estado
+                          }
+                          onChange={(
+                            e
+                          ) =>
                             setEstado(
-                              e.target.value
+                              e
+                                .target
+                                .value
                             )
                           }
                           className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
                         >
                           {ESTADOS.map(
-                            (item) => (
+                            (
+                              item
+                            ) => (
                               <option
-                                key={item}
-                                value={item}
+                                key={
+                                  item
+                                }
+                                value={
+                                  item
+                                }
                               >
                                 {
                                   ESTADO_LABEL[
@@ -1895,11 +2484,13 @@ export default function Novedades({ employees }: Props) {
                     <div className="space-y-3">
                       <div>
                         <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                          Periodo de nómina
+                          Período de nómina
                         </label>
 
                         <select
-                          value={periodo}
+                          value={
+                            periodo
+                          }
                           onChange={(e) =>
                             setPeriodo(
                               e.target.value
@@ -1908,10 +2499,16 @@ export default function Novedades({ employees }: Props) {
                           className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
                         >
                           {periodos.map(
-                            (item) => (
+                            (
+                              item
+                            ) => (
                               <option
-                                key={item}
-                                value={item}
+                                key={
+                                  item
+                                }
+                                value={
+                                  item
+                                }
                               >
                                 {nombrePeriodo(
                                   item
@@ -1931,7 +2528,7 @@ export default function Novedades({ employees }: Props) {
                           <button
                             type="button"
                             onClick={() =>
-                              setAfectaNomina(
+                              cambiarAfectaNomina(
                                 !afectaNomina
                               )
                             }
@@ -1960,43 +2557,78 @@ export default function Novedades({ employees }: Props) {
 
                       <div>
                         <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                          Tratamiento de nómina
+                          Tratamiento de
+                          nómina
                         </label>
 
                         <select
                           value={
                             tratamientoNomina
                           }
+                          disabled={
+                            !afectaNomina
+                          }
                           onChange={(e) =>
                             setTratamientoNomina(
                               e.target.value
                             )
                           }
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
+                          className={`w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400 ${
+                            !afectaNomina
+                              ? 'cursor-not-allowed bg-slate-100 text-slate-400'
+                              : 'bg-white'
+                          }`}
                         >
                           <option value="">
-                            Selecciona un tratamiento
+                            Selecciona un
+                            tratamiento
                           </option>
 
                           {Object.entries(
                             TRATAMIENTOS
-                          ).map(
-                            ([valor, label]) => (
-                              <option
-                                key={valor}
-                                value={valor}
-                              >
-                                {label}
-                              </option>
+                          )
+                            .filter(
+                              ([
+                                clave,
+                              ]) =>
+                                clave !==
+                                  'NO_APLICA' ||
+                                !afectaNomina
                             )
-                          )}
+                            .map(
+                              ([
+                                valorTratamiento,
+                                label,
+                              ]) => (
+                                <option
+                                  key={
+                                    valorTratamiento
+                                  }
+                                  value={
+                                    valorTratamiento
+                                  }
+                                >
+                                  {
+                                    label
+                                  }
+                                </option>
+                              )
+                            )}
                         </select>
+
+                        {!afectaNomina && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            Se establece
+                            automáticamente
+                            como "No
+                            aplica".
+                          </p>
+                        )}
                       </div>
 
                       <div>
                         <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                          Valor / porcentaje
-                          (opcional)
+                          Valor (opcional)
                         </label>
 
                         <div className="flex">
@@ -2008,16 +2640,26 @@ export default function Novedades({ employees }: Props) {
                             type="number"
                             min="0"
                             step="0.01"
-                            value={valor}
+                            value={
+                              valor
+                            }
                             onChange={(e) =>
                               setValor(
-                                e.target.value
+                                e
+                                  .target
+                                  .value
                               )
                             }
                             placeholder="0.00"
                             className="w-full rounded-r-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400"
                           />
                         </div>
+
+                        <p className="mt-1 text-xs text-slate-400">
+                          Ingresa un
+                          valor monetario
+                          si aplica.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -2041,10 +2683,13 @@ export default function Novedades({ employees }: Props) {
                         </label>
 
                         <textarea
-                          value={observacion}
+                          value={
+                            observacion
+                          }
                           onChange={(e) =>
                             setObservacion(
-                              e.target.value
+                              e.target
+                                .value
                             )
                           }
                           rows={3}
@@ -2055,7 +2700,8 @@ export default function Novedades({ employees }: Props) {
 
                       <div>
                         <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                          Observación para nómina
+                          Observación para
+                          nómina
                         </label>
 
                         <textarea
@@ -2064,7 +2710,8 @@ export default function Novedades({ employees }: Props) {
                           }
                           onChange={(e) =>
                             setObservacionNomina(
-                              e.target.value
+                              e.target
+                                .value
                             )
                           }
                           rows={3}
@@ -2080,10 +2727,13 @@ export default function Novedades({ employees }: Props) {
 
                         <input
                           type="url"
-                          value={soporteUrl}
+                          value={
+                            soporteUrl
+                          }
                           onChange={(e) =>
                             setSoporteUrl(
-                              e.target.value
+                              e.target
+                                .value
                             )
                           }
                           placeholder="https://..."
@@ -2098,8 +2748,12 @@ export default function Novedades({ employees }: Props) {
               <div className="mt-5 flex justify-end gap-3 border-t border-slate-100 pt-4">
                 <button
                   type="button"
-                  onClick={cerrarModal}
-                  disabled={guardando}
+                  onClick={
+                    cerrarModal
+                  }
+                  disabled={
+                    guardando
+                  }
                   className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   Cancelar
@@ -2107,7 +2761,9 @@ export default function Novedades({ employees }: Props) {
 
                 <button
                   type="submit"
-                  disabled={guardando}
+                  disabled={
+                    guardando
+                  }
                   className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
                 >
                   {guardando
@@ -2133,7 +2789,9 @@ export default function Novedades({ employees }: Props) {
 
               <button
                 onClick={() =>
-                  setSeleccionada(null)
+                  setSeleccionada(
+                    null
+                  )
                 }
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-xl text-slate-400 hover:bg-slate-100"
               >
@@ -2147,11 +2805,11 @@ export default function Novedades({ employees }: Props) {
                   seleccionada.tipo_novedad
                 )}`}
               >
-                {
-                  TIPOS_LABEL[
-                    seleccionada.tipo_novedad
-                  ]
-                }
+                {TIPOS_LABEL[
+                  seleccionada
+                    .tipo_novedad
+                ] ||
+                  seleccionada.tipo_novedad}
               </span>
 
               <div className="mt-4 flex items-center gap-3">
@@ -2169,7 +2827,10 @@ export default function Novedades({ employees }: Props) {
                   </p>
 
                   <p className="text-xs text-slate-400">
-                    CC. {seleccionada.documento}
+                    CC.{' '}
+                    {
+                      seleccionada.documento
+                    }
                   </p>
                 </div>
               </div>
@@ -2188,7 +2849,7 @@ export default function Novedades({ employees }: Props) {
 
                 <div>
                   <p className="text-xs text-slate-400">
-                    Periodo
+                    Fechas
                   </p>
 
                   <p className="mt-1 text-sm font-medium text-slate-700">
@@ -2204,11 +2865,27 @@ export default function Novedades({ employees }: Props) {
 
                 <div>
                   <p className="text-xs text-slate-400">
+                    Período de nómina
+                  </p>
+
+                  <p className="mt-1 text-sm font-medium capitalize text-slate-700">
+                    {seleccionada.periodo_nomina
+                      ? nombrePeriodo(
+                          seleccionada.periodo_nomina
+                        )
+                      : '-'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-400">
                     Días
                   </p>
 
                   <p className="mt-1 text-sm font-medium text-slate-700">
-                    {seleccionada.dias}
+                    {
+                      seleccionada.dias
+                    }
                   </p>
                 </div>
 
@@ -2224,7 +2901,8 @@ export default function Novedades({ employees }: Props) {
                   >
                     {
                       ESTADO_LABEL[
-                        seleccionada.estado
+                        seleccionada
+                          .estado
                       ]
                     }
                   </span>
@@ -2248,23 +2926,24 @@ export default function Novedades({ employees }: Props) {
                   </span>
                 </div>
 
-                {seleccionada.tratamiento_nomina && (
-                  <div>
-                    <p className="text-xs text-slate-400">
-                      Tratamiento
-                    </p>
+                <div>
+                  <p className="text-xs text-slate-400">
+                    Tratamiento
+                  </p>
 
-                    <p className="mt-1 text-sm font-medium text-slate-700">
-                      {TRATAMIENTOS[
-                        seleccionada
-                          .tratamiento_nomina
-                      ] ||
-                        seleccionada.tratamiento_nomina}
-                    </p>
-                  </div>
-                )}
+                  <p className="mt-1 text-sm font-medium text-slate-700">
+                    {seleccionada.tratamiento_nomina
+                      ? TRATAMIENTOS[
+                          seleccionada
+                            .tratamiento_nomina
+                        ] ||
+                        seleccionada.tratamiento_nomina
+                      : '-'}
+                  </p>
+                </div>
 
-                {seleccionada.valor !== null &&
+                {seleccionada.valor !==
+                  null &&
                   seleccionada.valor !==
                     undefined && (
                     <div>
@@ -2297,17 +2976,16 @@ export default function Novedades({ employees }: Props) {
                   </div>
                 )}
 
-                {seleccionada
-                  .observacion_nomina && (
+                {seleccionada.observacion_nomina && (
                   <div>
                     <p className="text-xs text-slate-400">
-                      Observación para nómina
+                      Observación para
+                      nómina
                     </p>
 
                     <p className="mt-1 rounded-lg bg-blue-50 p-3 text-sm text-slate-600">
                       {
-                        seleccionada
-                          .observacion_nomina
+                        seleccionada.observacion_nomina
                       }
                     </p>
                   </div>
@@ -2333,7 +3011,10 @@ export default function Novedades({ employees }: Props) {
                     abrirEditar(
                       seleccionada
                     )
-                    setSeleccionada(null)
+
+                    setSeleccionada(
+                      null
+                    )
                   }}
                   className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
                 >
@@ -2341,11 +3022,10 @@ export default function Novedades({ employees }: Props) {
                 </button>
 
                 <button
-                  onClick={() => {
-                    eliminarNovedad(
+                  onClick={async () => {
+                    await eliminarNovedad(
                       seleccionada
                     )
-                    setSeleccionada(null)
                   }}
                   className="rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"
                 >
