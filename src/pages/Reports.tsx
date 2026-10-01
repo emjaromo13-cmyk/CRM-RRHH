@@ -60,14 +60,33 @@ type Novedad = {
   created_at?: string;
 };
 
+type EmployeeData = {
+  id: number;
+  nombre: string;
+  documento?: string;
+  cargo?: string;
+  sede_id?: number;
+  username?: string;
+  estado?: string;
+};
+
+type BranchData = {
+  id: number;
+  nombre: string;
+  zona?: string;
+  lider?: string;
+  activo?: boolean;
+};
+
 type ReportsProps = {
   assignments: Assignment[];
   shiftTypes: ShiftType[];
 };
 
-const API_URL =
+const API_URL = (
   import.meta.env.VITE_API_URL ||
-  "https://crm-rrhh-backend.onrender.com/api";
+  "https://crm-rrhh-backend.onrender.com"
+).replace(/\/api\/?$/, "");
 
 const HORAS_NORMALES_MES = 210;
 
@@ -344,6 +363,11 @@ const Reports: React.FC<ReportsProps> = ({
     []
   );
 
+
+  const [branchesData, setBranchesData] = useState<
+    BranchData[]
+  >([]);
+
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState("");
@@ -371,15 +395,26 @@ const Reports: React.FC<ReportsProps> = ({
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const [attendanceResponse, novedadesResponse] =
-  await Promise.all([
-    fetch(`${API_URL}/api/asistencias`, {
-      headers,
-    }),
-    fetch(`${API_URL}/api/novedades-nomina`, {
-      headers,
-    }),
-  ]);
+      const [
+        attendanceResponse,
+        novedadesResponse,
+        employeesResponse,
+        branchesResponse,
+      ] = await Promise.all([
+        fetch(`${API_URL}/api/asistencias`, {
+          headers,
+        }),
+        fetch(`${API_URL}/api/novedades-nomina`, {
+          headers,
+        }),
+        fetch(`${API_URL}/api/empleados`, {
+          headers,
+        }),
+        fetch(`${API_URL}/api/sedes`, {
+          headers,
+        }),
+      ]);
+
       if (!attendanceResponse.ok) {
         throw new Error(
           `Error cargando asistencias: ${attendanceResponse.status}`
@@ -405,6 +440,44 @@ const Reports: React.FC<ReportsProps> = ({
         }
       }
 
+      let employeesData: EmployeeData[] = [];
+
+      if (employeesResponse.ok) {
+        const parsedEmployees =
+          await employeesResponse.json();
+
+        if (Array.isArray(parsedEmployees)) {
+          employeesData = parsedEmployees;
+        } else if (
+          Array.isArray(parsedEmployees?.data)
+        ) {
+          employeesData = parsedEmployees.data;
+        } else if (
+          Array.isArray(parsedEmployees?.empleados)
+        ) {
+          employeesData = parsedEmployees.empleados;
+        }
+      }
+
+      let branchesDataResponse: BranchData[] = [];
+
+      if (branchesResponse.ok) {
+        const parsedBranches =
+          await branchesResponse.json();
+
+        if (Array.isArray(parsedBranches)) {
+          branchesDataResponse = parsedBranches;
+        } else if (
+          Array.isArray(parsedBranches?.data)
+        ) {
+          branchesDataResponse = parsedBranches.data;
+        } else if (
+          Array.isArray(parsedBranches?.sedes)
+        ) {
+          branchesDataResponse = parsedBranches.sedes;
+        }
+      }
+
       const attendanceArray = Array.isArray(
         attendanceData
       )
@@ -413,58 +486,116 @@ const Reports: React.FC<ReportsProps> = ({
         ? attendanceData.data
         : [];
 
+      /* -----------------------------------------------
+         MAPAS DE EMPLEADOS Y SEDES
+         ----------------------------------------------- */
+
+      const employeeMap = new Map<number, EmployeeData>();
+
+      employeesData.forEach((employee) => {
+        const id = Number(employee.id);
+
+        if (!Number.isNaN(id)) {
+          employeeMap.set(id, employee);
+        }
+      });
+
+      const branchMap = new Map<number, BranchData>();
+
+      branchesDataResponse.forEach((branch) => {
+        const id = Number(branch.id);
+
+        if (!Number.isNaN(id)) {
+          branchMap.set(id, branch);
+        }
+      });
+
+      /* -----------------------------------------------
+         MAPEAR ASISTENCIAS
+         ----------------------------------------------- */
+
       const mappedAttendance: AttendanceRecord[] =
-        attendanceArray.map((record: any) => ({
-          id: Number(record.id),
-          employeeId:
+        attendanceArray.map((record: any) => {
+          const employeeId =
             record.empleado_id !== undefined
               ? Number(record.empleado_id)
-              : undefined,
-          branchId:
+              : undefined;
+
+          const branchId =
             record.sede_id !== undefined
               ? Number(record.sede_id)
-              : undefined,
-          employee:
-            record.empleado_nombre ||
-            record.employee ||
-            record.nombre ||
-            "",
-          branch:
-            record.sede_nombre ||
-            record.branch ||
-            record.sede ||
-            "",
-          date:
-            record.fecha ||
-            record.date ||
-            "",
-          scheduledStart:
-            record.scheduled_start ||
-            record.hora_programada ||
-            "",
-          realStart:
-            record.real_start ||
-            record.hora_entrada ||
-            "",
-          lateMinutes:
-            Number(
-              record.late_minutes ??
-                record.minutos_tarde ??
-                0
-            ),
-          discount: Boolean(
-            record.discount ??
-              record.descuento ??
-              false
-          ),
-          paidHours:
-            Number(
-              record.paid_hours ??
-                record.horas_pagadas ??
-                0
-            ) || 0,
-        }));
+              : undefined;
 
+          const employeeData =
+            employeeId !== undefined
+              ? employeeMap.get(employeeId)
+              : undefined;
+
+          const branchData =
+            branchId !== undefined
+              ? branchMap.get(branchId)
+              : undefined;
+
+          return {
+            id: Number(record.id),
+
+            employeeId,
+
+            branchId,
+
+            employee:
+              record.empleado_nombre ||
+              record.employee ||
+              record.nombre ||
+              employeeData?.nombre ||
+              "",
+
+            branch:
+              record.sede_nombre ||
+              record.branch ||
+              record.sede ||
+              branchData?.nombre ||
+              "",
+
+            date:
+              record.fecha ||
+              record.date ||
+              "",
+
+            scheduledStart:
+              record.scheduled_start ||
+              record.hora_programada ||
+              "",
+
+            realStart:
+              record.real_start ||
+              record.hora_entrada ||
+              "",
+
+            lateMinutes:
+              Number(
+                record.late_minutes ??
+                  record.minutos_tarde ??
+                  0
+              ),
+
+            discount: Boolean(
+              record.discount ??
+                record.descuento ??
+                false
+            ),
+
+            paidHours:
+              Number(
+                record.paid_hours ??
+                  record.horas_pagadas ??
+                  0
+              ) || 0,
+          };
+        });
+
+    
+      setBranchesData(branchesDataResponse);
       setAttendance(mappedAttendance);
       setNovedades(novedadesData);
     } catch (err: any) {
@@ -477,6 +608,8 @@ const Reports: React.FC<ReportsProps> = ({
 
       setAttendance([]);
       setNovedades([]);
+      
+      setBranchesData([]);
     } finally {
       setLoading(false);
     }
@@ -506,7 +639,11 @@ const Reports: React.FC<ReportsProps> = ({
 
     const result: number[] = [];
 
-    for (let year = currentYear - 2; year <= currentYear + 2; year++) {
+    for (
+      let year = currentYear - 2;
+      year <= currentYear + 2;
+      year++
+    ) {
       result.push(year);
     }
 
@@ -542,10 +679,21 @@ const Reports: React.FC<ReportsProps> = ({
       }
     });
 
+    branchesData.forEach((branch) => {
+      if (branch.nombre) {
+        values.add(branch.nombre);
+      }
+    });
+
     return Array.from(values).sort((a, b) =>
       a.localeCompare(b, "es")
     );
-  }, [assignments, attendance, novedades]);
+  }, [
+    assignments,
+    attendance,
+    novedades,
+    branchesData,
+  ]);
 
   /* =======================================================
      FILTRO DE ASIGNACIONES
@@ -553,8 +701,8 @@ const Reports: React.FC<ReportsProps> = ({
 
   const filteredAssignments = useMemo(() => {
     return assignments.filter((assignment) => {
-     const correctMonth =
-  Number(assignment.month) === selectedMonth;
+      const correctMonth =
+        Number(assignment.month) === selectedMonth;
 
       const correctYear =
         Number(assignment.year) === selectedYear;
@@ -1056,11 +1204,11 @@ const Reports: React.FC<ReportsProps> = ({
           );
 
           return {
-           Fecha: `${String(
-  assignment.day
-).padStart(2, "0")}/${String(
-  assignment.month + 1
-).padStart(2, "0")}/${assignment.year}`,
+            Fecha: `${String(
+              assignment.day
+            ).padStart(2, "0")}/${String(
+              assignment.month + 1
+            ).padStart(2, "0")}/${assignment.year}`,
             Sede: assignment.branch,
             Empleado:
               assignment.employee,
@@ -1587,7 +1735,9 @@ const Reports: React.FC<ReportsProps> = ({
                   <tbody>
                     {summary.map(
                       (item, index) => (
-                        <tr key={`${item.employee}-${item.branch}-${index}`}>
+                        <tr
+                          key={`${item.employee}-${item.branch}-${index}`}
+                        >
                           <td style={styles.td}>
                             <strong>
                               {item.employee}
