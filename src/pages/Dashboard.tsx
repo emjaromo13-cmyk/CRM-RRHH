@@ -1,1235 +1,1072 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import type { Page } from '../App'
+import { useEffect, useMemo, useState } from "react";
 
 type Employee = {
-  id: number
-  name: string
-  document?: string
-  role?: string
-  username: string
-  status: string
-}
+  id: number;
+  name: string;
+  document?: string;
+  role?: string;
+  username: string;
+  status: string;
+};
 
 type ShiftType = {
-  id: number
-  name: string
-  start?: string
-  end?: string
-  isSplit?: boolean
-  start2?: string
-  end2?: string
-  color?: string
-}
+  id: number;
+  name: string;
+  hours?: string | number;
+  start?: string;
+  end?: string;
+  isSplit?: boolean;
+  start2?: string;
+  end2?: string;
+  color?: string;
+};
 
 type Assignment = {
-  id: number
-  day: number
-  month: number
-  year: number
-  branch: string
-  employee: string
-  shift: string
-}
+  id: number;
+  day: number;
+  month: number;
+  year: number;
+  branch: string;
+  employee: string;
+  shift: string;
+};
 
 type AttendanceRecord = {
-  id: number
-  employee: string
-  branch: string
-  date: string
-  scheduledStart: string
-  realStart: string
-  lateMinutes: number
-  discount: boolean
-  paidHours: number
-}
-const API_URL = (
-  import.meta.env.VITE_API_URL ||
-  'https://crm-rrhh-backend.onrender.com'
-).replace(/\/$/, '')
+  id: number;
+  employeeId: number;
+  branchId: number;
+  employee: string;
+  branch: string;
+  date: string;
+  scheduledStart: string;
+  realStart: string;
+  lateMinutes: number;
+  discount: boolean;
+  paidHours: number;
+};
 
 type DashboardProps = {
-  employees: Employee[]
-  assignments: Assignment[]
-  shiftTypes: ShiftType[]
-  setPage: React.Dispatch<React.SetStateAction<Page>>
-  selectedBranch?: string
-  setSelectedBranch?: (branch: string) => void
-}
+  employees: Employee[];
+  assignments: Assignment[];
+  shiftTypes: ShiftType[];
+  setPage?: (page: string) => void;
+  selectedBranch?: string;
+  setSelectedBranch?: (branch: string) => void;
+};
 
-const BRANCHES = [
-  'PINOS',
-  'GUALANDAY',
-  'LIMONAR',
-  'BAMBU',
-  'MANZANARES',
-  'RIVERA',
-  'GIGANTE',
-  'MIRA RIO',
-  'CAÑA BRAVA',
-  'BUGANVILES',
-  'ZULUAGA',
-  'IPANEMA',
-]
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "https://crm-rrhh-backend.onrender.com"
+).replace(/\/$/, "");
 
 const MONTHS = [
-  'Enero',
-  'Febrero',
-  'Marzo',
-  'Abril',
-  'Mayo',
-  'Junio',
-  'Julio',
-  'Agosto',
-  'Septiembre',
-  'Octubre',
-  'Noviembre',
-  'Diciembre',
-]
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
 
-function calculateHours(
-  start?: string,
-  end?: string,
-  start2?: string,
-  end2?: string
-) {
-  if (!start || !end) return 0
+/* =========================================================
+   HORAS ENTRE DOS HORAS
+========================================================= */
 
-  const getMinutes = (time: string) => {
-    const [hours, minutes] = time.split(':').map(Number)
-    return hours * 60 + minutes
+function hoursBetween(start?: string, end?: string) {
+  if (!start || !end) return 0;
+
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+
+  const startMin = sh * 60 + sm;
+  let endMin = eh * 60 + em;
+
+  if (endMin < startMin) {
+    endMin += 24 * 60;
   }
 
-  let total = getMinutes(end) - getMinutes(start)
-
-  if (start2 && end2) {
-    total += getMinutes(end2) - getMinutes(start2)
-  }
-
-  if (total < 0) {
-    total += 24 * 60
-  }
-
-  return total / 60
+  return (endMin - startMin) / 60;
 }
+
+/* =========================================================
+   HORAS TOTALES DEL TURNO
+========================================================= */
+
+function totalShiftHours(shift: ShiftType) {
+  const first = hoursBetween(shift.start, shift.end);
+
+  if (!shift.isSplit) {
+    if (first === 0 && shift.hours !== undefined) {
+      return Number(shift.hours) || 0;
+    }
+
+    return first;
+  }
+
+  const second = hoursBetween(
+    shift.start2,
+    shift.end2
+  );
+
+  return first + second;
+}
+
+/* =========================================================
+   COMPONENTE
+========================================================= */
 
 export default function Dashboard({
   employees,
   assignments,
   shiftTypes,
-  setPage,
-  selectedBranch: externalSelectedBranch,
-  setSelectedBranch: externalSetSelectedBranch,
 }: DashboardProps) {
-  const [internalSelectedBranch, setInternalSelectedBranch] =
-    useState('RIVERA')
+  const today = new Date();
 
-  const selectedBranch =
-    externalSelectedBranch ?? internalSelectedBranch
+  const [selectedMonth, setSelectedMonth] =
+    useState(today.getMonth());
 
-  const handleSelectBranch =
-    externalSetSelectedBranch ?? setInternalSelectedBranch
+  const [selectedYear, setSelectedYear] =
+    useState(today.getFullYear());
 
-  const today = new Date()
-  const [selectedMonth, setSelectedMonth] = useState(
-    today.getMonth()
-  )
-  const [selectedYear, setSelectedYear] = useState(
-    today.getFullYear()
-  )
-  const currentMonth = MONTHS[selectedMonth]
+  const [attendance, setAttendance] =
+    useState<AttendanceRecord[]>([]);
 
-  // =========================================================
-  // REGISTROS DE ASISTENCIA
-  // =========================================================
+  const [loadingAttendance, setLoadingAttendance] =
+    useState(true);
 
-   const [attendanceRecords, setAttendanceRecords] =
-    useState<AttendanceRecord[]>([])
+  const [attendanceError, setAttendanceError] =
+    useState("");
+
+  const [expandedEmployee, setExpandedEmployee] =
+    useState<string | null>(null);
+
+  /* =========================================================
+     CARGAR ASISTENCIAS
+     
+     IMPORTANTE:
+     Usa exactamente la misma estructura
+     que utiliza Attendance.tsx:
+     
+     record.empleado_id
+     record.sede_id
+     record.fecha
+     record.scheduled_start
+     record.real_start
+     record.late_minutes
+     record.discount
+     record.paid_hours
+  ========================================================= */
 
   useEffect(() => {
-    const cargarAsistencias = async () => {
+    const loadAttendance = async () => {
       try {
-        const token = localStorage.getItem('token')
+        setLoadingAttendance(true);
+        setAttendanceError("");
+
+        const token = localStorage.getItem("token");
 
         if (!token) {
-          console.error('Sesión no encontrada.')
-          return
+          throw new Error("Sesión no encontrada.");
         }
 
-        const response = await fetch(
+        /* ---------------------------------------------
+           ASISTENCIAS
+        --------------------------------------------- */
+
+        const attendanceResponse = await fetch(
           `${API_URL}/api/asistencias`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
             },
           }
-        )
+        );
 
-        if (!response.ok) {
+        if (!attendanceResponse.ok) {
           throw new Error(
-            'No se pudieron cargar las asistencias.'
-          )
+            `No se pudieron cargar las asistencias. Error ${attendanceResponse.status}`
+          );
         }
 
-        const data = await response.json()
+        const data = await attendanceResponse.json();
 
-        const mappedRecords: AttendanceRecord[] =
-          data.map((record: any) => ({
-            id: Number(record.id),
-            employee:
-              record.empleado ||
-              record.employee ||
-              '',
-            branch:
-              record.sede ||
-              record.branch ||
-              '',
-            date: String(
-              record.fecha || record.date || ''
-            ).slice(0, 10),
-            scheduledStart:
-              record.hora_programada ||
-              record.scheduledStart ||
-              '',
-            realStart:
-              record.hora_entrada ||
-              record.realStart ||
-              '',
-            lateMinutes: Number(
-              record.minutos_tarde ||
-              record.lateMinutes ||
-              0
-            ),
-            discount:
-              Boolean(
-                record.descuento ??
-                record.discount ??
-                false
-              ),
-            paidHours: Number(
-              record.horas_pagadas ||
-              record.paidHours ||
-              0
-            ),
-          }))
+        /* ---------------------------------------------
+           SEDES
+        --------------------------------------------- */
 
-        setAttendanceRecords(mappedRecords)
+        const sedesResponse = await fetch(
+          `${API_URL}/api/sedes`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!sedesResponse.ok) {
+          throw new Error(
+            "No se pudieron cargar las sedes."
+          );
+        }
+
+        const sedes = await sedesResponse.json();
+
+        const sedeMap = new Map<number, string>();
+
+        sedes.forEach((sede: any) => {
+          sedeMap.set(
+            Number(sede.id),
+            String(sede.nombre ?? "")
+          );
+        });
+
+        /* ---------------------------------------------
+           MAPEAR EXACTAMENTE COMO ASISTENCIA
+        --------------------------------------------- */
+
+        const formattedRecords: AttendanceRecord[] =
+          Array.isArray(data)
+            ? data.map((record: any) => {
+                const employee = employees.find(
+                  emp =>
+                    Number(emp.id) ===
+                    Number(record.empleado_id)
+                );
+
+                return {
+                  id: Number(record.id),
+
+                  employeeId:
+                    Number(record.empleado_id),
+
+                  branchId:
+                    Number(record.sede_id),
+
+                  employee:
+                    employee?.name ||
+                    `Empleado ${record.empleado_id}`,
+
+                  branch:
+                    sedeMap.get(
+                      Number(record.sede_id)
+                    ) || "",
+
+                  date:
+                    String(
+                      record.fecha ?? ""
+                    ).slice(0, 10),
+
+                  scheduledStart:
+                    record.scheduled_start || "",
+
+                  realStart:
+                    record.real_start ||
+                    record.hora_entrada ||
+                    "",
+
+                  /* ESTE ES EL CAMPO REAL
+                     DE TARDANZAS DEL BACKEND */
+
+                  lateMinutes:
+                    Number(
+                      record.late_minutes
+                    ) || 0,
+
+                  discount:
+                    Boolean(record.discount),
+
+                  paidHours:
+                    Number(
+                      record.paid_hours
+                    ) || 0,
+                };
+              })
+            : [];
+
+        setAttendance(formattedRecords);
       } catch (error) {
         console.error(
-          'Error cargando asistencias:',
+          "Error cargando asistencias:",
           error
-        )
+        );
+
+        setAttendanceError(
+          error instanceof Error
+            ? error.message
+            : "No fue posible cargar las asistencias."
+        );
+
+        setAttendance([]);
+      } finally {
+        setLoadingAttendance(false);
       }
-    }
+    };
 
-    cargarAsistencias()
-  }, [])
+    loadAttendance();
+  }, [employees]);
 
-  // =========================================================
-  // ASISTENCIAS DEL MES ACTUAL
-  // =========================================================
-
-  const currentMonthAttendance = useMemo(() => {
-    return attendanceRecords.filter((record) => {
-      if (!record.date) return false
-
-      const parts = record.date.split('-')
-
-      if (parts.length !== 3) return false
-
-      const year = Number(parts[0])
-      const month = Number(parts[1]) - 1
-
-      return (
-        year === selectedYear &&
-        month === selectedMonth
-      )
-    })
-  }, [
-    attendanceRecords,
-    selectedMonth,
-    selectedYear,
-  ])
-
-  // =========================================================
-  // TARDANZAS DE LA SEDE SELECCIONADA
-  // =========================================================
-
-  const lateRecordsBySelectedBranch = useMemo(() => {
-    return currentMonthAttendance.filter(
-      (record) =>
-        record.branch === selectedBranch &&
-        Number(record.lateMinutes) > 0
-    )
-  }, [
-    currentMonthAttendance,
-    selectedBranch,
-  ])
-
-  const totalLateCountBySelectedBranch =
-    lateRecordsBySelectedBranch.length
-
-  const totalLateMinutesBySelectedBranch =
-    lateRecordsBySelectedBranch.reduce(
-      (total, record) =>
-        total + Number(record.lateMinutes || 0),
-      0
-    )
-
-  // =========================================================
-  // TARDANZAS POR SEDE
-  // =========================================================
-
-  const lateByBranch = useMemo(() => {
-    const result: Record<
-      string,
-      {
-        count: number
-        minutes: number
-      }
-    > = {}
-
-    BRANCHES.forEach((branch) => {
-      result[branch] = {
-        count: 0,
-        minutes: 0,
-      }
-    })
-
-    currentMonthAttendance.forEach((record) => {
-      const lateMinutes = Number(
-        record.lateMinutes || 0
-      )
-
-      if (
-        lateMinutes > 0 &&
-        result[record.branch]
-      ) {
-        result[record.branch].count += 1
-
-        result[record.branch].minutes +=
-          lateMinutes
-      }
-    })
-
-    return result
-  }, [currentMonthAttendance])
-
-  // =========================================================
-  // TOP 3 PERSONAS CON MÁS TARDANZAS
-  // =========================================================
-
-  const topThreeLateEmployees = useMemo(() => {
-    const employeeLateMap: Record<
-      string,
-      {
-        employee: string
-        branch: string
-        lateCount: number
-        lateMinutes: number
-      }
-    > = {}
-
-    currentMonthAttendance.forEach((record) => {
-      const lateMinutes = Number(
-        record.lateMinutes || 0
-      )
-
-      if (lateMinutes <= 0) return
-
-      const employeeName = record.employee
-
-      if (!employeeLateMap[employeeName]) {
-        employeeLateMap[employeeName] = {
-          employee: employeeName,
-          branch: record.branch,
-          lateCount: 0,
-          lateMinutes: 0,
-        }
-      }
-
-      employeeLateMap[employeeName].lateCount += 1
-
-      employeeLateMap[employeeName].lateMinutes +=
-        lateMinutes
-    })
-
-    return Object.values(employeeLateMap)
-      .sort((a, b) => {
-        if (b.lateCount !== a.lateCount) {
-          return b.lateCount - a.lateCount
-        }
-
-        return b.lateMinutes - a.lateMinutes
-      })
-      .slice(0, 3)
-  }, [currentMonthAttendance])
-
-  // =========================================================
-  // EMPLEADOS ACTIVOS
-  // =========================================================
-
-  const activeEmployees = useMemo(
-    () =>
-      employees.filter(
-        (e) =>
-          e.status?.toLowerCase() === 'activo'
-      ),
-    [employees]
-  )
-
-  // =========================================================
-  // MAPA DE HORAS POR TURNO
-  // =========================================================
+  /* =========================================================
+     MAPA DE TURNOS
+  ========================================================= */
 
   const shiftHours = useMemo(() => {
-    const hoursMap: Record<string, number> = {}
+    const map = new Map<string, number>();
 
-    shiftTypes.forEach((shift) => {
-      if (shift.start && shift.end) {
-        hoursMap[shift.name] =
-          calculateHours(
-            shift.start,
-            shift.end,
-            shift.start2,
-            shift.end2
-          )
-      }
-    })
+    shiftTypes.forEach(shift => {
+      map.set(
+        shift.name.trim().toLowerCase(),
+        totalShiftHours(shift)
+      );
+    });
 
-    return hoursMap
-  }, [shiftTypes])
+    return map;
+  }, [shiftTypes]);
 
-  // =========================================================
-  // HORAS DE CONTINGENCIA
-  // =========================================================
+  /* =========================================================
+     OBTENER HORAS DEL TURNO
+  ========================================================= */
 
-  const getShiftHoursFallback = (
-    shiftName: string
-  ) => {
+  const getShiftHours = (shiftName: string) => {
+    const normalized =
+      shiftName.trim().toLowerCase();
+
     if (
-      shiftHours[shiftName] !== undefined
+      normalized === "descanso" ||
+      normalized === "ausente" ||
+      normalized === "incapacidad"
     ) {
-      return shiftHours[shiftName]
+      return 0;
     }
 
-    const shift = shiftName.toLowerCase()
+    return (
+      shiftHours.get(normalized) || 0
+    );
+  };
 
-    if (shift === 'descanso') return 0
-    if (shift.includes('mañ')) return 8
-    if (shift.includes('tarde')) return 7
-    if (shift.includes('largo')) return 15
+  /* =========================================================
+     ASIGNACIONES DEL MES
+     
+     IMPORTANTE:
+     Las horas programadas salen del calendario.
+     NO salen de asistencia.
+  ========================================================= */
 
-    return 0
-  }
-
-  // =========================================================
-  // ASIGNACIONES DEL PERÍODO SELECCIONADO
-  // =========================================================
-
-  const assignmentsForSelectedPeriod = useMemo(() => {
+  const assignmentsForPeriod = useMemo(() => {
     return assignments.filter(
-      (a) =>
-        a.month === selectedMonth &&
-        a.year === selectedYear
-    )
+      assignment =>
+        Number(assignment.month) ===
+          selectedMonth &&
+        Number(assignment.year) ===
+          selectedYear
+    );
   }, [
     assignments,
     selectedMonth,
     selectedYear,
-  ])
+  ]);
 
-  // =========================================================
-  // HORAS POR EMPLEADO
-  // =========================================================
+  /* =========================================================
+     HORAS POR EMPLEADO
+  ========================================================= */
 
   const employeeHours = useMemo(() => {
-    const result: Record<string, number> = {}
+    const map = new Map<string, number>();
 
-    assignmentsForSelectedPeriod.forEach((a) => {
-      const hours =
-        getShiftHoursFallback(a.shift)
+    assignmentsForPeriod.forEach(
+      assignment => {
+        const employeeKey =
+          assignment.employee
+            .trim()
+            .toLowerCase();
 
-      result[a.employee] =
-        (result[a.employee] || 0) + hours
-    })
+        const hours =
+          getShiftHours(
+            assignment.shift
+          );
 
-    return result
+        map.set(
+          employeeKey,
+          (map.get(employeeKey) || 0) +
+            hours
+        );
+      }
+    );
+
+    return map;
   }, [
-    assignmentsForSelectedPeriod,
+    assignmentsForPeriod,
     shiftHours,
-  ])
+  ]);
 
-  const totalHours = useMemo(
-    () =>
-      Object.values(employeeHours).reduce(
-        (sum, h) => sum + h,
-        0
-      ),
-    [employeeHours]
-  )
+  /* =========================================================
+     EMPLEADOS CON MÁS DE 210 HORAS
+  ========================================================= */
 
-  const totalOvertime = useMemo(
-    () =>
-      Object.values(employeeHours).reduce(
-        (sum, h) =>
-          sum + Math.max(0, h - 210),
-        0
-      ),
-    [employeeHours]
-  )
+  const employeesWithOvertime =
+    useMemo(() => {
+      return employees
+        .map(employee => {
+          const key =
+            employee.name
+              .trim()
+              .toLowerCase();
 
-  const employeesWithOvertime = useMemo(
-    () =>
-      activeEmployees
-        .map((employee) => {
           const hours =
-            employeeHours[employee.name] || 0
+            employeeHours.get(key) || 0;
 
           return {
-            ...employee,
+            employee,
             hours,
             overtime: Math.max(
               0,
               hours - 210
             ),
-          }
+          };
         })
         .filter(
-          (emp) => emp.overtime > 0
+          item =>
+            item.overtime > 0
         )
         .sort(
           (a, b) =>
-            b.overtime - a.overtime
-        ),
-    [activeEmployees, employeeHours]
-  )
+            b.overtime -
+            a.overtime
+        );
+    }, [
+      employees,
+      employeeHours,
+    ]);
 
-  // =========================================================
-  // FUNCIONES POR SEDE
-  // =========================================================
+  /* =========================================================
+     ASISTENCIAS DEL MES SELECCIONADO
+  ========================================================= */
 
-  const getHoursByBranch = (
-    branch: string
-  ) => {
-    return assignmentsForSelectedPeriod
+  const attendanceForPeriod =
+    useMemo(() => {
+      return attendance.filter(
+        record => {
+          if (!record.date) {
+            return false;
+          }
+
+          const parts =
+            record.date.split("-");
+
+          if (
+            parts.length < 2
+          ) {
+            return false;
+          }
+
+          const year =
+            Number(parts[0]);
+
+          const month =
+            Number(parts[1]) - 1;
+
+          return (
+            year === selectedYear &&
+            month === selectedMonth
+          );
+        }
+      );
+    }, [
+      attendance,
+      selectedMonth,
+      selectedYear,
+    ]);
+
+  /* =========================================================
+     SOLO REGISTROS CON TARDANZA
+
+     Aquí YA NO CALCULAMOS LA TARDANZA.
+     Usamos directamente:
+     
+     record.lateMinutes
+  ========================================================= */
+
+  const lateRecords = useMemo(() => {
+    return attendanceForPeriod
       .filter(
-        (a) => a.branch === branch
+        record =>
+          Number(
+            record.lateMinutes
+          ) > 0
       )
-      .reduce(
-        (total, a) =>
-          total +
-          getShiftHoursFallback(a.shift),
-        0
-      )
-  }
+      .sort(
+        (a, b) =>
+          b.lateMinutes -
+          a.lateMinutes
+      );
+  }, [attendanceForPeriod]);
 
-  const getTurnsByBranch = (
-    branch: string
-  ) =>
-    assignmentsForSelectedPeriod.filter(
-      (a) => a.branch === branch
-    ).length
+  /* =========================================================
+     AGRUPAR TARDANZAS POR EMPLEADO
 
-  const getEmployeesByBranchCount = (
-    branch: string
-  ) => {
-    const names = assignmentsForSelectedPeriod
-      .filter(
-        (a) => a.branch === branch
-      )
-      .map((a) => a.employee)
+     CAMBIO:
+     El orden principal ahora es por CANTIDAD
+     DE LLEGADAS TARDE.
 
-    return new Set(names).size
-  }
+     En caso de empate, se usan los minutos
+     acumulados como desempate.
+  ========================================================= */
 
-  const getExtraHoursByBranch = (
-    branch: string
-  ) => {
-    const branchAssignments =
-      assignmentsForSelectedPeriod.filter(
-        (a) => a.branch === branch
-      )
-
-    const empHours: Record<
+  const lateEmployees = useMemo(() => {
+    const grouped = new Map<
       string,
-      number
-    > = {}
-
-    branchAssignments.forEach((a) => {
-      const hours =
-        getShiftHoursFallback(a.shift)
-
-      empHours[a.employee] =
-        (empHours[a.employee] || 0) +
-        hours
-    })
-
-    return Object.values(
-      empHours
-    ).reduce(
-      (total, h) =>
-        total + Math.max(0, h - 210),
-      0
-    )
-  }
-
-  const getBranchEmployees = (
-    branch: string
-  ) => {
-    const branchAssignments =
-      assignmentsForSelectedPeriod.filter(
-        (a) => a.branch === branch
-      )
-
-    const uniqueNames = Array.from(
-      new Set(
-        branchAssignments.map(
-          (a) => a.employee
-        )
-      )
-    )
-
-    return uniqueNames.map((name) => {
-      const emp = employees.find(
-        (e) => e.name === name
-      )
-
-      const lastAssignment =
-        [...branchAssignments]
-          .reverse()
-          .find(
-            (a) =>
-              a.employee === name
-          )
-
-      return {
-        name,
-        username:
-          emp?.username || 'N/A',
-        shift:
-          lastAssignment?.shift ||
-          'N/A',
+      {
+        employee: string;
+        lateCount: number;
+        minutes: number;
+        records: AttendanceRecord[];
       }
-    })
-  }
+    >();
+
+    lateRecords.forEach(record => {
+      const key =
+        record.employee
+          .trim()
+          .toLowerCase();
+
+      const existing =
+        grouped.get(key);
+
+      if (existing) {
+        existing.lateCount += 1;
+
+        existing.minutes +=
+          Number(
+            record.lateMinutes
+          );
+
+        existing.records.push(
+          record
+        );
+      } else {
+        grouped.set(key, {
+          employee:
+            record.employee,
+
+          lateCount: 1,
+
+          minutes:
+            Number(
+              record.lateMinutes
+            ),
+
+          records: [
+            record,
+          ],
+        });
+      }
+    });
+
+    return Array.from(
+      grouped.values()
+    )
+      .sort((a, b) => {
+        /* Primero:
+           cantidad de llegadas tarde */
+
+        if (
+          b.lateCount !==
+          a.lateCount
+        ) {
+          return (
+            b.lateCount -
+            a.lateCount
+          );
+        }
+
+        /* Desempate:
+           minutos acumulados */
+
+        return (
+          b.minutes -
+          a.minutes
+        );
+      })
+      .slice(0, 5);
+  }, [lateRecords]);
+
+  /* =========================================================
+     FORMATOS
+  ========================================================= */
+
+  const formatDate = (
+    date: string
+  ) => {
+    if (!date) {
+      return "-";
+    }
+
+    const parts =
+      date.split("-");
+
+    if (
+      parts.length !== 3
+    ) {
+      return date;
+    }
+
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  };
+
+  const formatHours = (
+    hours: number
+  ) => {
+    return `${hours.toFixed(1)} h`;
+  };
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
 
   return (
     <div className="space-y-6">
 
-      {/* ENCABEZADO */}
+      {/* =====================================================
+          ENCABEZADO
+      ===================================================== */}
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
 
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">
+          <h1 className="text-2xl font-bold text-gray-900">
             Dashboard RRHH
           </h1>
 
-          <p className="text-slate-500 mt-1">
-            Resumen general del personal y turnos
+          <p className="mt-1 text-sm text-gray-500">
+            Seguimiento de tardanzas y
+            horas extra del período
+            seleccionado.
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2">
 
-          <p className="text-xs text-slate-400 uppercase font-semibold mb-2">
-            Periodo
-          </p>
-
-          <div className="flex gap-2">
-
-            {/* MES */}
-            <select
-              value={selectedMonth}
-              onChange={(e) =>
-                setSelectedMonth(Number(e.target.value))
-              }
-              className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 bg-white outline-none focus:border-blue-500"
-            >
-              {MONTHS.map((month, index) => (
-                <option key={month} value={index}>
+          <select
+            value={selectedMonth}
+            onChange={e =>
+              setSelectedMonth(
+                Number(e.target.value)
+              )
+            }
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            {MONTHS.map(
+              (
+                month,
+                index
+              ) => (
+                <option
+                  key={month}
+                  value={index}
+                >
                   {month}
                 </option>
-              ))}
-            </select>
+              )
+            )}
+          </select>
 
-            {/* AÑO */}
-            <select
-              value={selectedYear}
-              onChange={(e) =>
-                setSelectedYear(Number(e.target.value))
-              }
-              className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 bg-white outline-none focus:border-blue-500"
-            >
-              {Array.from(
-                { length: 5 },
-                (_, index) =>
-                  today.getFullYear() - 2 + index
-              ).map((year) => (
-                <option key={year} value={year}>
+          <select
+            value={selectedYear}
+            onChange={e =>
+              setSelectedYear(
+                Number(e.target.value)
+              )
+            }
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            {[2025, 2026, 2027].map(
+              year => (
+                <option
+                  key={year}
+                  value={year}
+                >
                   {year}
                 </option>
-              ))}
-            </select>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* TARJETAS PRINCIPALES */}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-
-        <DashboardCard
-          title="Empleados activos"
-          value={activeEmployees.length.toString()}
-          subtitle={`De ${employees.length} registrados`}
-          icon="👥"
-        />
-
-        <DashboardCard
-          title="Horas programadas"
-          value={`${totalHours.toFixed(1)} h`}
-          subtitle={`${assignmentsForSelectedPeriod.length} turnos`}
-          icon="⏱️"
-        />
-
-        <DashboardCard
-          title="Horas extra"
-          value={`${totalOvertime.toFixed(1)} h`}
-          subtitle="Sobre 210 horas"
-          icon="⚡"
-          highlight={totalOvertime > 0}
-        />
-
-        <DashboardCard
-          title="Tardanzas"
-          value={currentMonthAttendance
-            .filter(
-              (r) =>
-                Number(r.lateMinutes || 0) >
-                0
-            )
-            .length.toString()}
-          subtitle="Registros del periodo"
-          icon="🕐"
-        />
-
-        <DashboardCard
-          title="Sedes"
-          value={BRANCHES.length.toString()}
-          subtitle="Sedes configuradas"
-          icon="🏢"
-        />
-
-      </div>
-
-      {/* SEDES */}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* LISTA DE SEDES */}
-
-        <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3 max-h-[600px] overflow-y-auto">
-
-          <div className="flex items-center justify-between mb-2 px-2">
-
-            <h3 className="text-lg font-bold text-slate-800">
-              Sedes
-            </h3>
-
-            <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
-              {BRANCHES.length}
-            </span>
-
-          </div>
-
-          {BRANCHES.map((branch) => {
-
-            const isSelected =
-              selectedBranch === branch
-
-            const empCount =
-              getEmployeesByBranchCount(
-                branch
               )
+            )}
+          </select>
 
-            const branchHrs =
-              getHoursByBranch(branch)
+        </div>
+      </div>
 
-            const branchLate =
-              lateByBranch[branch] || {
-                count: 0,
-                minutes: 0,
-              }
+      {/* =====================================================
+          TARDANZAS
+      ===================================================== */}
 
-            return (
-              <button
-                key={branch}
-                onClick={() =>
-                  handleSelectBranch(
-                    branch
-                  )
-                }
-                className={`w-full text-left p-4 rounded-2xl border transition-all ${
-                  isSelected
-                    ? 'border-blue-500 bg-blue-50 shadow-sm'
-                    : 'border-slate-200 hover:bg-slate-50'
-                }`}
-              >
+      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
 
-                <div className="flex items-center justify-between">
+        <div className="border-b border-gray-100 px-6 py-5">
 
-                  <div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 
-                    <div className="font-semibold text-slate-800">
-                      {branch}
-                    </div>
+            <div>
 
-                    <div className="text-sm text-slate-500">
-                      {empCount} empleados
-                    </div>
+              <div className="flex items-center gap-2">
 
-                    <div className="text-xs text-red-500 mt-1">
-                      🕐 {branchLate.count}{' '}
-                      tardanzas
-                    </div>
+                <span className="text-xl">
+                  🕐
+                </span>
 
-                  </div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Personas con más
+                  tardanzas
+                </h2>
 
-                  <div className="text-right">
+              </div>
 
-                    <div className="font-bold text-slate-700">
-                      {branchHrs} h
-                    </div>
+              <p className="mt-1 text-sm text-gray-500">
+                Todas las sedes ·{" "}
+                {MONTHS[selectedMonth]}{" "}
+                {selectedYear}
+              </p>
 
-                    {branchLate.count > 0 && (
-                      <div className="text-xs text-red-500 mt-1">
-                        {branchLate.minutes}{' '}
-                        min
-                      </div>
-                    )}
+            </div>
 
-                  </div>
+            <div className="rounded-full bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">
+              Top 5
+            </div>
 
-                </div>
-
-              </button>
-            )
-          })}
+          </div>
 
         </div>
 
-        {/* DETALLE SEDE */}
+        <div className="p-6">
 
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 p-6 flex flex-col justify-between">
+          {loadingAttendance ? (
 
-          <div>
+            <div className="flex items-center justify-center py-10">
 
-            <div className="flex items-center justify-between mb-6">
+              <div className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-blue-600" />
 
-              <div>
-
-                <h3 className="text-2xl font-bold text-slate-800">
-                  {selectedBranch}
-                </h3>
-
-                <p className="text-slate-500">
-                  Resumen de la sede
-                </p>
-
-              </div>
-
-              <div className="text-right">
-
-                <div className="text-xs text-slate-400 uppercase font-semibold">
-                  Período
-                </div>
-
-                <div className="font-semibold text-slate-700 capitalize">
-                  {currentMonth}{' '}
-                  {selectedYear}
-                </div>
-
-              </div>
+              <span className="ml-3 text-sm text-gray-500">
+                Cargando reportes de
+                asistencia...
+              </span>
 
             </div>
 
-            {/* TARJETAS DE LA SEDE */}
+          ) : attendanceError ? (
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+              {attendanceError}
+            </div>
 
-              <div className="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+          ) : lateEmployees.length === 0 ? (
 
-                <div className="text-xs text-slate-500 uppercase font-semibold">
-                  Horas
-                </div>
+            <div className="flex flex-col items-center justify-center py-10 text-center">
 
-                <div className="text-3xl font-bold text-slate-800 mt-1">
-                  {getHoursByBranch(
-                    selectedBranch
-                  )}{' '}
-                  h
-                </div>
-
+              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-50 text-2xl">
+                ✅
               </div>
 
-              <div className="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+              <h3 className="font-semibold text-gray-900">
+                No hay registros de
+                tardanzas
+              </h3>
 
-                <div className="text-xs text-slate-500 uppercase font-semibold">
-                  Turnos
-                </div>
-
-                <div className="text-3xl font-bold text-slate-800 mt-1">
-                  {getTurnsByBranch(
-                    selectedBranch
-                  )}
-                </div>
-
-              </div>
-
-              <div className="rounded-2xl border border-orange-200 p-4 bg-orange-50">
-
-                <div className="text-xs text-orange-600 uppercase font-semibold">
-                  Horas extra
-                </div>
-
-                <div className="text-3xl font-bold text-orange-600 mt-1">
-                  {getExtraHoursByBranch(
-                    selectedBranch
-                  )}{' '}
-                  h
-                </div>
-
-              </div>
-
-              {/* TARDANZAS */}
-
-              <div className="rounded-2xl border border-red-200 p-4 bg-red-50">
-
-                <div className="text-xs text-red-600 uppercase font-semibold">
-                  Tardanzas
-                </div>
-
-                <div className="text-3xl font-bold text-red-600 mt-1">
-                  {
-                    totalLateCountBySelectedBranch
-                  }
-                </div>
-
-                <div className="text-sm text-red-500 mt-1">
-                  {
-                    totalLateMinutesBySelectedBranch
-                  }{' '}
-                  minutos tarde
-                </div>
-
-              </div>
+              <p className="mt-1 max-w-md text-sm text-gray-500">
+                Aún no existen llegadas
+                tarde registradas en
+                este período.
+              </p>
 
             </div>
 
-            {/* EMPLEADOS */}
+          ) : (
 
-            <div className="space-y-3 mb-6 max-h-64 overflow-y-auto pr-1">
+            <div className="space-y-3">
 
-              {getBranchEmployees(
-                selectedBranch
-              ).map((emp) => (
+              {lateEmployees.map(
+                (
+                  item,
+                  index
+                ) => {
 
-                <div
-                  key={emp.name}
-                  className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50"
-                >
+                  const key =
+                    item.employee
+                      .trim()
+                      .toLowerCase();
 
-                  <div>
+                  const expanded =
+                    expandedEmployee ===
+                    key;
 
-                    <div className="font-semibold text-slate-800">
-                      {emp.name}
+                  return (
+
+                    <div
+                      key={key}
+                      className="overflow-hidden rounded-xl border border-gray-100 bg-gray-50 transition hover:border-gray-200 hover:bg-white"
+                    >
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedEmployee(
+                            expanded
+                              ? null
+                              : key
+                          )
+                        }
+                        className="flex w-full items-center gap-4 p-4 text-left"
+                      >
+
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-gray-700 shadow-sm">
+                          {index + 1}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+
+                          <p className="truncate font-semibold text-gray-900">
+                            {item.employee}
+                          </p>
+
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            {item.records.length}{" "}
+                            llegada
+                            {item.records.length !==
+                            1
+                              ? "s"
+                              : ""}{" "}
+                            tarde
+                          </p>
+
+                        </div>
+
+                        <div className="text-right">
+
+                          <p className="text-lg font-bold text-red-600">
+                            {item.minutes}
+                          </p>
+
+                          <p className="text-xs text-gray-500">
+                            minutos tarde
+                          </p>
+
+                        </div>
+
+                        <span
+                          className={`text-gray-400 transition-transform ${
+                            expanded
+                              ? "rotate-180"
+                              : ""
+                          }`}
+                        >
+                          ▼
+                        </span>
+
+                      </button>
+
+                      {expanded && (
+
+                        <div className="border-t border-gray-200 bg-white px-4 py-4">
+
+                          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                            Detalle de llegadas
+                            tarde
+                          </div>
+
+                          <div className="overflow-x-auto">
+
+                            <table className="w-full min-w-[650px] text-sm">
+
+                              <thead>
+
+                                <tr className="border-b border-gray-100 text-left text-xs uppercase tracking-wide text-gray-400">
+
+                                  <th className="pb-3 pr-4">
+                                    Fecha
+                                  </th>
+
+                                  <th className="pb-3 pr-4">
+                                    Sede
+                                  </th>
+
+                                  <th className="pb-3 pr-4">
+                                    Programado
+                                  </th>
+
+                                  <th className="pb-3 pr-4">
+                                    Entrada real
+                                  </th>
+
+                                  <th className="pb-3 text-right">
+                                    Tarde
+                                  </th>
+
+                                </tr>
+
+                              </thead>
+
+                              <tbody>
+
+                                {item.records.map(
+                                  record => (
+
+                                    <tr
+                                      key={
+                                        record.id
+                                      }
+                                      className="border-b border-gray-50 last:border-0"
+                                    >
+
+                                      <td className="py-3 pr-4 text-gray-700">
+                                        {formatDate(
+                                          record.date
+                                        )}
+                                      </td>
+
+                                      <td className="py-3 pr-4 font-medium text-gray-700">
+                                        {record.branch ||
+                                          "-"}
+                                      </td>
+
+                                      <td className="py-3 pr-4 text-gray-600">
+                                        {record.scheduledStart ||
+                                          "-"}
+                                      </td>
+
+                                      <td className="py-3 pr-4 text-gray-600">
+                                        {record.realStart ||
+                                          "-"}
+                                      </td>
+
+                                      <td className="py-3 text-right font-semibold text-red-600">
+                                        +
+                                        {
+                                          record.lateMinutes
+                                        }{" "}
+                                        min
+                                      </td>
+
+                                    </tr>
+
+                                  )
+                                )}
+
+                              </tbody>
+
+                            </table>
+
+                          </div>
+
+                        </div>
+
+                      )}
+
                     </div>
 
-                    <div className="text-xs text-slate-400">
-                      @{emp.username}
-                    </div>
-
-                  </div>
-
-                </div>
-
-              ))}
-
-              {getBranchEmployees(
-                selectedBranch
-              ).length === 0 && (
-
-                <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  No hay empleados asignados
-                  a esta sede.
-                </div>
-
+                  );
+                }
               )}
 
             </div>
 
-            {/* RESUMEN DE TARDANZAS */}
+          )}
 
-            <div className="rounded-2xl border border-red-100 bg-red-50 p-4 mb-6">
+        </div>
 
-              <div className="flex items-center justify-between">
+      </section>
 
-                <div>
+      {/* =====================================================
+          HORAS EXTRA
+      ===================================================== */}
 
-                  <h4 className="font-bold text-red-700">
-                    🕐 Tardanzas de{' '}
-                    {selectedBranch}
-                  </h4>
+      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
 
-                  <p className="text-xs text-red-500 mt-1">
-                    {currentMonth}{' '}
-                    {selectedYear}
-                  </p>
+        <div className="border-b border-gray-100 px-6 py-5">
 
-                </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 
-                <div className="text-right">
+            <div>
 
-                  <div className="text-2xl font-bold text-red-600">
-                    {
-                      totalLateCountBySelectedBranch
-                    }
-                  </div>
+              <div className="flex items-center gap-2">
 
-                  <div className="text-xs text-red-500">
-                    registros
-                  </div>
+                <span className="text-xl">
+                  ⏱
+                </span>
 
-                </div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Empleados con horas
+                  extra
+                </h2>
 
               </div>
 
-              <div className="mt-3 text-sm text-red-600">
+              <p className="mt-1 text-sm text-gray-500">
+                Empleados que superan las
+                210 horas mensuales ·{" "}
+                {MONTHS[selectedMonth]}{" "}
+                {selectedYear}
+              </p>
 
-                Total acumulado:{' '}
+            </div>
 
-                <strong>
-                  {
-                    totalLateMinutesBySelectedBranch
-                  }{' '}
-                  minutos
-                </strong>
+            <div className="rounded-full bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">
+              {
+                employeesWithOvertime.length
+              }{" "}
+              para revisar
+            </div>
 
+          </div>
+
+        </div>
+
+        <div className="overflow-x-auto">
+
+          {employeesWithOvertime.length ===
+          0 ? (
+
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+
+              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-50 text-2xl">
+                ✓
               </div>
 
+              <h3 className="font-semibold text-gray-900">
+                No hay horas extra
+              </h3>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Ningún empleado supera
+                las 210 horas
+                programadas en este
+                período.
+              </p>
+
             </div>
 
-          </div>
+          ) : (
 
-          {/* BOTÓN TURNOS */}
-
-          <div className="flex gap-3">
-
-            <button
-              onClick={() =>
-                setPage('turns')
-              }
-              className="bg-blue-600 text-white px-4 py-2 rounded-xl"
-            >
-              🗓️ Ver turnos
-            </button>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* TOP 3 TARDANZAS */}
-
-      <div className="bg-white border border-slate-200 rounded-2xl p-5">
-
-        <div className="flex items-center justify-between mb-5">
-
-          <div>
-
-            <h2 className="text-lg font-bold text-slate-800">
-              🕐 Personas con más tardanzas
-            </h2>
-
-            <p className="text-sm text-slate-400">
-              Todas las sedes · {currentMonth}{' '}
-              {selectedYear}
-            </p>
-
-          </div>
-
-          <span className="bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">
-            Top 3
-          </span>
-
-        </div>
-
-        {topThreeLateEmployees.length ===
-        0 ? (
-
-          <div className="text-center py-10">
-
-            <div className="text-4xl mb-3">
-              ✅
-            </div>
-
-            <p className="font-semibold text-slate-700">
-              No hay registros de
-              tardanzas
-            </p>
-
-            <p className="text-sm text-slate-400">
-              Aún no existen llegadas tarde
-              registradas en este período.
-            </p>
-
-          </div>
-
-        ) : (
-
-          <div className="space-y-3">
-
-            {topThreeLateEmployees.map(
-              (person, index) => (
-
-                <div
-                  key={person.employee}
-                  className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-4"
-                >
-
-                  <div className="flex items-center gap-3">
-
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                        index === 0
-                          ? 'bg-red-100 text-red-700'
-                          : index === 1
-                          ? 'bg-orange-100 text-orange-700'
-                          : 'bg-yellow-100 text-yellow-700'
-                      }`}
-                    >
-                      {index + 1}
-                    </div>
-
-                    <div>
-
-                      <div className="font-semibold text-slate-700">
-                        {person.employee}
-                      </div>
-
-                      <div className="text-xs text-slate-400">
-                        Sede:{' '}
-                        {person.branch}
-                      </div>
-
-                      <div className="text-xs text-slate-400">
-                        {
-                          person.lateMinutes
-                        }{' '}
-                        minutos tarde acumulados
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                  <div className="text-right">
-
-                    <div className="font-bold text-red-600 text-xl">
-                      {person.lateCount}
-                    </div>
-
-                    <div className="text-xs text-slate-400">
-                      tardanzas
-                    </div>
-
-                  </div>
-
-                </div>
-
-              )
-            )}
-
-          </div>
-
-        )}
-
-      </div>
-
-      {/* EMPLEADOS CON HORAS EXTRA */}
-
-      <div className="bg-white border border-slate-200 rounded-2xl p-5">
-
-        <div className="flex items-center justify-between mb-5">
-
-          <div>
-
-            <h2 className="text-lg font-bold text-slate-800">
-              Empleados con horas extra
-            </h2>
-
-            <p className="text-sm text-slate-400">
-              Empleados que superan las
-              210 horas mensuales
-            </p>
-
-          </div>
-
-          <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-xs font-semibold">
-            {employeesWithOvertime.length}{' '}
-            para revisar
-          </span>
-
-        </div>
-
-        {employeesWithOvertime.length ===
-        0 ? (
-
-          <div className="text-center py-10">
-
-            <div className="text-4xl mb-3">
-              ✅
-            </div>
-
-            <p className="font-semibold text-slate-700">
-              No hay horas extra
-            </p>
-
-            <p className="text-sm text-slate-400">
-              Ningún empleado supera las
-              210 horas.
-            </p>
-
-          </div>
-
-        ) : (
-
-          <div className="overflow-x-auto">
-
-            <table className="w-full">
+            <table className="w-full min-w-[700px]">
 
               <thead>
 
-                <tr className="border-b border-slate-100 text-left">
+                <tr className="border-b border-gray-100 bg-gray-50/70">
 
-                  <th className="pb-3 text-xs uppercase text-slate-400 font-semibold">
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">
                     Empleado
                   </th>
 
-                  <th className="pb-3 text-xs uppercase text-slate-400 font-semibold">
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">
                     Usuario
                   </th>
 
-                  <th className="pb-3 text-xs uppercase text-slate-400 font-semibold">
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-400">
                     Horas
                   </th>
 
-                  <th className="pb-3 text-xs uppercase text-slate-400 font-semibold">
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-400">
                     Horas extra
                   </th>
 
@@ -1240,52 +1077,57 @@ export default function Dashboard({
               <tbody>
 
                 {employeesWithOvertime.map(
-                  (employee) => (
+                  ({
+                    employee,
+                    hours,
+                    overtime,
+                  }) => (
 
                     <tr
-                      key={employee.id}
-                      className="border-b border-slate-50 last:border-0"
+                      key={
+                        employee.id
+                      }
+                      className="border-b border-gray-50 transition hover:bg-gray-50"
                     >
 
-                      <td className="py-4">
+                      <td className="px-6 py-4">
 
-                        <div className="font-semibold text-slate-700">
+                        <p className="font-semibold text-gray-900">
                           {employee.name}
-                        </div>
+                        </p>
 
                         {employee.role && (
 
-                          <div className="text-xs text-slate-400">
+                          <p className="mt-0.5 text-xs text-gray-500">
                             {employee.role}
-                          </div>
+                          </p>
 
                         )}
 
                       </td>
 
-                      <td className="py-4">
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {employee.username ||
+                          "-"}
+                      </td>
 
-                        <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-sm font-medium text-slate-600">
-                          {employee.username}
+                      <td className="px-6 py-4 text-right">
+
+                        <span className="font-semibold text-gray-800">
+                          {formatHours(
+                            hours
+                          )}
                         </span>
 
                       </td>
 
-                      <td className="py-4 font-semibold text-slate-700">
-                        {employee.hours.toFixed(
-                          1
-                        )}{' '}
-                        h
-                      </td>
+                      <td className="px-6 py-4 text-right">
 
-                      <td className="py-4">
-
-                        <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-lg font-bold text-sm">
+                        <span className="inline-flex rounded-full bg-orange-50 px-3 py-1 text-sm font-bold text-orange-700">
                           +
-                          {employee.overtime.toFixed(
-                            1
-                          )}{' '}
-                          h
+                          {formatHours(
+                            overtime
+                          )}
                         </span>
 
                       </td>
@@ -1299,132 +1141,12 @@ export default function Dashboard({
 
             </table>
 
-          </div>
-
-        )}
-
-      </div>
-
-      {/* INFORMACIÓN */}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-        <InfoCard
-          title="Control de horas"
-          description="Las horas extra se calculan automáticamente después de superar las 210 horas mensuales."
-          icon="⏱️"
-        />
-
-        <InfoCard
-          title="Control por sede"
-          description="Consulta rápidamente qué sedes tienen mayor cantidad de horas programadas y tardanzas."
-          icon="🏢"
-        />
-
-        <InfoCard
-          title="Seguimiento"
-          description="El Dashboard se actualiza automáticamente cuando modificas empleados, turnos o registros de asistencia."
-          icon="📊"
-        />
-
-      </div>
-
-    </div>
-  )
-}
-
-// =========================================================
-// DASHBOARD CARD
-// =========================================================
-
-function DashboardCard({
-  title,
-  value,
-  subtitle,
-  icon,
-  highlight = false,
-}: {
-  title: string
-  value: string
-  subtitle: string
-  icon: string
-  highlight?: boolean
-}) {
-  return (
-    <div
-      className={`bg-white border rounded-2xl p-5 ${
-        highlight
-          ? 'border-orange-200'
-          : 'border-slate-200'
-      }`}
-    >
-
-      <div className="flex items-start justify-between">
-
-        <div>
-
-          <p className="text-sm font-medium text-slate-500">
-            {title}
-          </p>
-
-          <p className="text-2xl font-bold text-slate-800 mt-2">
-            {value}
-          </p>
-
-          <p className="text-xs text-slate-400 mt-1">
-            {subtitle}
-          </p>
+          )}
 
         </div>
 
-        <div
-          className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl ${
-            highlight
-              ? 'bg-orange-50'
-              : 'bg-blue-50'
-          }`}
-        >
-          {icon}
-        </div>
-
-      </div>
+      </section>
 
     </div>
-  )
-}
-
-// =========================================================
-// INFO CARD
-// =========================================================
-
-function InfoCard({
-  title,
-  description,
-  icon,
-}: {
-  title: string
-  description: string
-  icon: string
-}) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5">
-
-      <div className="flex items-center gap-3 mb-3">
-
-        <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
-          {icon}
-        </div>
-
-        <h3 className="font-bold text-slate-700">
-          {title}
-        </h3>
-
-      </div>
-
-      <p className="text-sm text-slate-500 leading-relaxed">
-        {description}
-      </p>
-
-    </div>
-  )
+  );
 }
