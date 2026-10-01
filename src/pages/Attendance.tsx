@@ -68,118 +68,301 @@ const API_URL = (
 ).replace(/\/$/, '');
 
 /* =========================================================
+   NORMALIZAR TEXTO
+========================================================= */
+
+const normalizeText = (value: unknown): string =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+
+/* =========================================================
    EQUIVALENCIAS PC → SEDE
 ========================================================= */
 
 const PC_TO_BRANCH: Record<string, string> = {
-  'DM-BAMBU': 'BAMBU',
-  'DM-BUGANVILES': 'BUGANVILES',
-  'DM-CANA-BRAVA': 'CAÑA BRAVA',
-  'DM-GIGANTE': 'GIGANTE',
-  'DM-GUALANDAY': 'GUALANDAY',
-  'DM-LIMONAR': 'LIMONAR',
-  'DM-MANZANAREZ': 'MANZANARES',
-  'DM-RIVERA': 'RIVERA',
-  'DM-ZULUAGA': 'ZULUAGA',
+  'DM BAMBU': 'BAMBU',
+  'DM BUGANVILES': 'BUGANVILES',
+  'DM CANA BRAVA': 'CAÑA BRAVA',
+  'DM GIGANTE': 'GIGANTE',
+  'DM GUALANDAY': 'GUALANDAY',
+  'DM LIMONAR': 'LIMONAR',
+  'DM MANZANAREZ': 'MANZANARES',
+  'DM MANZANARES': 'MANZANARES',
+  'DM RIVERA': 'RIVERA',
+  'DM ZULUAGA': 'ZULUAGA',
+  'DM IPANEMA': 'IPANEMA',
+  'DM MIRA RIO': 'MIRA RIO',
+  'DM PINOS': 'PINOS',
+
+  BAMBU: 'BAMBU',
+  BUGANVILES: 'BUGANVILES',
+  'CANA BRAVA': 'CAÑA BRAVA',
+  'CAÑA BRAVA': 'CAÑA BRAVA',
+  GIGANTE: 'GIGANTE',
+  GUALANDAY: 'GUALANDAY',
+  LIMONAR: 'LIMONAR',
+  MANZANAREZ: 'MANZANARES',
+  MANZANARES: 'MANZANARES',
+  RIVERA: 'RIVERA',
+  ZULUAGA: 'ZULUAGA',
   IPANEMA: 'IPANEMA',
   'MIRA RIO': 'MIRA RIO',
   PINOS: 'PINOS',
 };
 
 /* =========================================================
-   FUNCIONES AUXILIARES
+   RESOLVER SEDE
 ========================================================= */
 
-const normalizeText = (value: unknown) =>
-  String(value ?? '')
-    .trim()
-    .toUpperCase();
+const resolveBranch = (value: unknown): string => {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return '';
+  }
+
+  const directMatch = PC_TO_BRANCH[normalized];
+
+  if (directMatch) {
+    return directMatch;
+  }
+
+  const compact = normalized.replace(/[^A-Z0-9]/g, '');
+
+  if (compact.includes('PINOS')) {
+    return 'PINOS';
+  }
+
+  if (compact.includes('GUALANDAY')) {
+    return 'GUALANDAY';
+  }
+
+  if (compact.includes('LIMONAR')) {
+    return 'LIMONAR';
+  }
+
+  if (compact.includes('BAMBU')) {
+    return 'BAMBU';
+  }
+
+  if (
+    compact.includes('MANZANAREZ') ||
+    compact.includes('MANZANARES')
+  ) {
+    return 'MANZANARES';
+  }
+
+  if (compact.includes('RIVERA')) {
+    return 'RIVERA';
+  }
+
+  if (compact.includes('GIGANTE')) {
+    return 'GIGANTE';
+  }
+
+  if (compact.includes('MIRARIO')) {
+    return 'MIRA RIO';
+  }
+
+  if (compact.includes('CANABRAVA')) {
+    return 'CAÑA BRAVA';
+  }
+
+  if (compact.includes('BUGANVILES')) {
+    return 'BUGANVILES';
+  }
+
+  if (compact.includes('ZULUAGA')) {
+    return 'ZULUAGA';
+  }
+
+  if (compact.includes('IPANEMA')) {
+    return 'IPANEMA';
+  }
+
+  return '';
+};
+
+/* =========================================================
+   FECHA EXCEL → YYYY-MM-DD
+========================================================= */
 
 const excelDateToISO = (value: unknown): string => {
-  if (value instanceof Date && !isNaN(value.getTime())) {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
-
-    return `${year}-${month}-${day}`;
+  if (
+    value instanceof Date &&
+    !isNaN(value.getTime())
+  ) {
+    return [
+      value.getFullYear(),
+      String(value.getMonth() + 1).padStart(2, '0'),
+      String(value.getDate()).padStart(2, '0'),
+    ].join('-');
   }
 
   if (typeof value === 'number') {
     const date = XLSX.SSF.parse_date_code(value);
 
     if (date) {
-      return `${date.y}-${String(date.m).padStart(2, '0')}-${String(
-        date.d
-      ).padStart(2, '0')}`;
+      return [
+        date.y,
+        String(date.m).padStart(2, '0'),
+        String(date.d).padStart(2, '0'),
+      ].join('-');
     }
   }
 
-  const text = String(value ?? '').trim();
+  let text = String(value ?? '').trim();
 
   if (!text) {
     return '';
   }
 
+  text = normalizeText(text);
+
   const months: Record<string, number> = {
     ENE: 1,
+    ENERO: 1,
     FEB: 2,
+    FEBRERO: 2,
     MAR: 3,
+    MARZO: 3,
     ABR: 4,
+    ABRIL: 4,
     MAY: 5,
+    MAYO: 5,
     JUN: 6,
+    JUNIO: 6,
     JUL: 7,
+    JULIO: 7,
     AGO: 8,
+    AGOSTO: 8,
     SEP: 9,
+    SEPT: 9,
+    SEPTIEMBRE: 9,
     OCT: 10,
+    OCTUBRE: 10,
     NOV: 11,
+    NOVIEMBRE: 11,
     DIC: 12,
+    DICIEMBRE: 12,
   };
 
-  const match = text
-    .toUpperCase()
-    .match(/^([A-ZÁÉÍÓÚÑ]+)-(\d{1,2})-(\d{4})$/);
+  /* DD/MM/YYYY */
+  let match = text.match(
+    /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/
+  );
 
   if (match) {
-    const monthText = match[1].substring(0, 3);
-    const day = Number(match[2]);
+    const day = Number(match[1]);
+    const month = Number(match[2]);
     const year = Number(match[3]);
-    const month = months[monthText];
 
-    if (month) {
-      return `${year}-${String(month).padStart(2, '0')}-${String(
-        day
-      ).padStart(2, '0')}`;
+    if (
+      day >= 1 &&
+      day <= 31 &&
+      month >= 1 &&
+      month <= 12
+    ) {
+      return [
+        year,
+        String(month).padStart(2, '0'),
+        String(day).padStart(2, '0'),
+      ].join('-');
     }
   }
 
-  const slashMatch = text.match(
-    /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+  /* YYYY-MM-DD */
+  match = text.match(
+    /^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})/
   );
 
-  if (slashMatch) {
-    const day = Number(slashMatch[1]);
-    const month = Number(slashMatch[2]);
-    const year = Number(slashMatch[3]);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
 
-    return `${year}-${String(month).padStart(2, '0')}-${String(
-      day
-    ).padStart(2, '0')}`;
+    if (
+      month >= 1 &&
+      month <= 12 &&
+      day >= 1 &&
+      day <= 31
+    ) {
+      return [
+        year,
+        String(month).padStart(2, '0'),
+        String(day).padStart(2, '0'),
+      ].join('-');
+    }
   }
 
-  return text;
+  /* MES-DÍA-AÑO */
+  match = text.match(
+    /^([A-Z]+)[-\/ ](\d{1,2})[-\/ ](\d{4})/
+  );
+
+  if (match) {
+    const month =
+      months[match[1].substring(0, 3)] ??
+      months[match[1]];
+
+    const day = Number(match[2]);
+    const year = Number(match[3]);
+
+    if (
+      month &&
+      day >= 1 &&
+      day <= 31
+    ) {
+      return [
+        year,
+        String(month).padStart(2, '0'),
+        String(day).padStart(2, '0'),
+      ].join('-');
+    }
+  }
+
+  const parsed = new Date(text);
+
+  if (!isNaN(parsed.getTime())) {
+    return [
+      parsed.getFullYear(),
+      String(parsed.getMonth() + 1).padStart(2, '0'),
+      String(parsed.getDate()).padStart(2, '0'),
+    ].join('-');
+  }
+
+  return '';
 };
 
+/* =========================================================
+   HORA EXCEL → HH:MM
+========================================================= */
+
 const excelTimeToHHMM = (value: unknown): string => {
-  if (value instanceof Date && !isNaN(value.getTime())) {
+  if (
+    value instanceof Date &&
+    !isNaN(value.getTime())
+  ) {
     return `${String(value.getHours()).padStart(2, '0')}:${String(
       value.getMinutes()
     ).padStart(2, '0')}`;
   }
 
   if (typeof value === 'number') {
-    const totalMinutes = Math.round(value * 24 * 60);
-    const hours = Math.floor(totalMinutes / 60) % 24;
-    const minutes = totalMinutes % 60;
+    const totalMinutes = Math.round(
+      value * 24 * 60
+    );
+
+    const hours =
+      Math.floor(totalMinutes / 60) % 24;
+
+    const minutes =
+      totalMinutes % 60;
 
     return `${String(hours).padStart(2, '0')}:${String(
       minutes
@@ -217,9 +400,12 @@ export default function Attendance({
   employees,
   shiftTypes = [],
 }: Props) {
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [selectedDate, setSelectedDate] =
+    useState(
+      new Date()
+        .toISOString()
+        .slice(0, 10)
+    );
 
   const [selectedBranch, setSelectedBranch] =
     useState('Todas');
@@ -231,9 +417,8 @@ export default function Attendance({
      ASISTENCIAS
   ======================================================= */
 
-  const [records, setRecords] = useState<AttendanceRecord[]>(
-    []
-  );
+  const [records, setRecords] =
+    useState<AttendanceRecord[]>([]);
 
   const [loadingRecords, setLoadingRecords] =
     useState(false);
@@ -242,20 +427,20 @@ export default function Attendance({
      SELECCIÓN MASIVA
   ======================================================= */
 
-  const [selectedRecords, setSelectedRecords] = useState<
-    number[]
-  >([]);
+  const [selectedRecords, setSelectedRecords] =
+    useState<number[]>([]);
 
   const [deletingSelected, setDeletingSelected] =
     useState(false);
 
   /* =======================================================
-     CARGAR ASISTENCIAS DESDE EL BACKEND
+     CARGAR ASISTENCIAS DESDE BACKEND
   ======================================================= */
 
   useEffect(() => {
     const loadAttendance = async () => {
-      const token = localStorage.getItem('token');
+      const token =
+        localStorage.getItem('token');
 
       if (!token) {
         setRecords([]);
@@ -267,20 +452,23 @@ export default function Attendance({
         setLoadingRecords(true);
 
         const headers = {
-          Authorization: `Bearer ${token}`,
+          Authorization:
+            `Bearer ${token}`,
         };
 
         const [
           attendanceResponse,
           sedesResponse,
         ] = await Promise.all([
-          fetch(`${API_URL}/api/asistencias`, {
-            headers,
-          }),
+          fetch(
+            `${API_URL}/api/asistencias`,
+            { headers }
+          ),
 
-          fetch(`${API_URL}/api/sedes`, {
-            headers,
-          }),
+          fetch(
+            `${API_URL}/api/sedes`,
+            { headers }
+          ),
         ]);
 
         if (!attendanceResponse.ok) {
@@ -295,36 +483,48 @@ export default function Attendance({
           );
         }
 
-        const data = await attendanceResponse.json();
-        const sedes = await sedesResponse.json();
+        const data =
+          await attendanceResponse.json();
 
-        const sedeMap = new Map<number, string>();
+        const sedes =
+          await sedesResponse.json();
+
+        const sedeMap =
+          new Map<number, string>();
 
         sedes.forEach((sede: any) => {
           sedeMap.set(
             Number(sede.id),
-            String(sede.nombre ?? '')
+            String(
+              sede.nombre ?? ''
+            )
           );
         });
 
-        const formattedRecords: AttendanceRecord[] =
+        const formattedRecords:
+          AttendanceRecord[] =
           data.map((record: any) => {
-            const employee = employees.find(
-              emp =>
-                Number(emp.id) ===
-                Number(record.empleado_id)
-            );
+            const employee =
+              employees.find(
+                emp =>
+                  Number(emp.id) ===
+                  Number(
+                    record.empleado_id
+                  )
+              );
 
             return {
               id: Number(record.id),
 
-              employeeId: Number(
-                record.empleado_id
-              ),
+              employeeId:
+                Number(
+                  record.empleado_id
+                ),
 
-              branchId: Number(
-                record.sede_id
-              ),
+              branchId:
+                Number(
+                  record.sede_id
+                ),
 
               employee:
                 employee?.name ||
@@ -332,15 +532,19 @@ export default function Attendance({
 
               branch:
                 sedeMap.get(
-                  Number(record.sede_id)
+                  Number(
+                    record.sede_id
+                  )
                 ) || '',
 
-              date: String(
-                record.fecha ?? ''
-              ).slice(0, 10),
+              date:
+                String(
+                  record.fecha ?? ''
+                ).slice(0, 10),
 
               scheduledStart:
-                record.scheduled_start || '',
+                record.scheduled_start ||
+                '',
 
               realStart:
                 record.real_start ||
@@ -348,17 +552,25 @@ export default function Attendance({
                 '',
 
               lateMinutes:
-                Number(record.late_minutes) || 0,
+                Number(
+                  record.late_minutes
+                ) || 0,
 
               discount:
-                Boolean(record.discount),
+                Boolean(
+                  record.discount
+                ),
 
               paidHours:
-                Number(record.paid_hours) || 0,
+                Number(
+                  record.paid_hours
+                ) || 0,
             };
           });
 
-        setRecords(formattedRecords);
+        setRecords(
+          formattedRecords
+        );
       } catch (error) {
         console.error(
           'Error cargando asistencias:',
@@ -394,103 +606,127 @@ export default function Attendance({
      FECHA SELECCIONADA
   ========================================================= */
 
-  const selectedYear = Number(
-    selectedDate.split('-')[0]
-  );
+  const selectedYear =
+    Number(
+      selectedDate.split('-')[0]
+    );
 
   const selectedMonth =
-    Number(selectedDate.split('-')[1]) - 1;
+    Number(
+      selectedDate.split('-')[1]
+    ) - 1;
 
-  const todayDay = Number(
-    selectedDate.split('-')[2]
-  );
+  const todayDay =
+    Number(
+      selectedDate.split('-')[2]
+    );
 
   /* =========================================================
      TURNOS DEL DÍA
   ========================================================= */
 
-  const todayAssignments = useMemo(() => {
-    return assignments.filter(a => {
-      const dayOk = a.day === todayDay;
+  const todayAssignments =
+    useMemo(() => {
+      return assignments.filter(
+        a => {
+          const dayOk =
+            a.day === todayDay;
 
-      const monthOk =
-        a.month === selectedMonth;
+          const monthOk =
+            a.month ===
+            selectedMonth;
 
-      const yearOk =
-        a.year === selectedYear;
+          const yearOk =
+            a.year ===
+            selectedYear;
 
-      const branchOk =
-        selectedBranch === 'Todas' ||
-        a.branch === selectedBranch;
+          const branchOk =
+            selectedBranch ===
+              'Todas' ||
+            a.branch ===
+              selectedBranch;
 
-      const employeeOk =
-        selectedEmployee === 'Todos' ||
-        a.employee === selectedEmployee;
+          const employeeOk =
+            selectedEmployee ===
+              'Todos' ||
+            a.employee ===
+              selectedEmployee;
 
-      return (
-        dayOk &&
-        monthOk &&
-        yearOk &&
-        branchOk &&
-        employeeOk
+          return (
+            dayOk &&
+            monthOk &&
+            yearOk &&
+            branchOk &&
+            employeeOk
+          );
+        }
       );
-    });
-  }, [
-    assignments,
-    todayDay,
-    selectedMonth,
-    selectedYear,
-    selectedBranch,
-    selectedEmployee,
-  ]);
+    }, [
+      assignments,
+      todayDay,
+      selectedMonth,
+      selectedYear,
+      selectedBranch,
+      selectedEmployee,
+    ]);
 
   /* =========================================================
      LISTAS
   ========================================================= */
 
-  const branches = Array.from(
-    new Set(
-      assignments
-        .map(a => a.branch)
-        .filter(Boolean)
-    )
-  );
+  const branches =
+    Array.from(
+      new Set(
+        assignments
+          .map(a => a.branch)
+          .filter(Boolean)
+      )
+    );
 
-  const employeesList = Array.from(
-    new Set(
-      assignments
-        .filter(
-          a =>
-            selectedBranch === 'Todas' ||
-            a.branch === selectedBranch
-        )
-        .map(a => a.employee)
-        .filter(Boolean)
-    )
-  );
+  const employeesList =
+    Array.from(
+      new Set(
+        assignments
+          .filter(
+            a =>
+              selectedBranch ===
+                'Todas' ||
+              a.branch ===
+                selectedBranch
+          )
+          .map(a => a.employee)
+          .filter(Boolean)
+      )
+    );
 
   /* =========================================================
      REGISTROS FILTRADOS
   ========================================================= */
 
-  const filteredRecords = records.filter(r => {
-    const dateOk =
-      r.date === selectedDate;
+  const filteredRecords =
+    records.filter(r => {
+      const dateOk =
+        r.date ===
+        selectedDate;
 
-    const branchOk =
-      selectedBranch === 'Todas' ||
-      r.branch === selectedBranch;
+      const branchOk =
+        selectedBranch ===
+          'Todas' ||
+        r.branch ===
+          selectedBranch;
 
-    const employeeOk =
-      selectedEmployee === 'Todos' ||
-      r.employee === selectedEmployee;
+      const employeeOk =
+        selectedEmployee ===
+          'Todos' ||
+        r.employee ===
+          selectedEmployee;
 
-    return (
-      dateOk &&
-      branchOk &&
-      employeeOk
-    );
-  });
+      return (
+        dateOk &&
+        branchOk &&
+        employeeOk
+      );
+    });
 
   /* =========================================================
      SELECCIÓN DE REGISTROS
@@ -498,40 +734,55 @@ export default function Attendance({
 
   const allFilteredSelected =
     filteredRecords.length > 0 &&
-    filteredRecords.every(record =>
-      selectedRecords.includes(record.id)
+    filteredRecords.every(
+      record =>
+        selectedRecords.includes(
+          record.id
+        )
     );
 
   const toggleSelectAll = () => {
     if (allFilteredSelected) {
-      setSelectedRecords(prev =>
-        prev.filter(
-          id =>
-            !filteredRecords.some(
-              record => record.id === id
-            )
-        )
+      setSelectedRecords(
+        prev =>
+          prev.filter(
+            id =>
+              !filteredRecords.some(
+                record =>
+                  record.id === id
+              )
+          )
       );
     } else {
-      setSelectedRecords(prev => [
-        ...prev,
+      setSelectedRecords(
+        prev => [
+          ...prev,
 
-        ...filteredRecords
-          .map(record => record.id)
-          .filter(
-            id => !prev.includes(id)
-          ),
-      ]);
+          ...filteredRecords
+            .map(
+              record =>
+                record.id
+            )
+            .filter(
+              id =>
+                !prev.includes(id)
+            ),
+        ]
+      );
     }
   };
 
-  const toggleSelectRecord = (id: number) => {
-    setSelectedRecords(prev =>
-      prev.includes(id)
-        ? prev.filter(
-            recordId => recordId !== id
-          )
-        : [...prev, id]
+  const toggleSelectRecord = (
+    id: number
+  ) => {
+    setSelectedRecords(
+      prev =>
+        prev.includes(id)
+          ? prev.filter(
+              recordId =>
+                recordId !== id
+            )
+          : [...prev, id]
     );
   };
 
@@ -539,93 +790,107 @@ export default function Attendance({
      ELIMINAR SELECCIONADOS
   ========================================================= */
 
-  const deleteSelectedRecords = async () => {
-    if (selectedRecords.length === 0) {
-      alert(
-        'Selecciona al menos una asistencia.'
-      );
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `¿Eliminar ${selectedRecords.length} registro(s) de asistencia del día ${selectedDate}?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      const token =
-        localStorage.getItem('token');
-
-      if (!token) {
-        alert('Sesión no encontrada.');
+  const deleteSelectedRecords =
+    async () => {
+      if (
+        selectedRecords.length ===
+        0
+      ) {
+        alert(
+          'Selecciona al menos una asistencia.'
+        );
         return;
       }
 
-      setDeletingSelected(true);
-
-      const response = await fetch(
-        `${API_URL}/api/asistencias/eliminar-masivo`,
-        {
-          method: 'DELETE',
-
-          headers: {
-            'Content-Type':
-              'application/json',
-
-            Authorization:
-              `Bearer ${token}`,
-          },
-
-          body: JSON.stringify({
-            ids: selectedRecords,
-            fecha: selectedDate,
-          }),
-        }
-      );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.mensaje ||
-            'No se pudieron eliminar las asistencias.'
+      const confirmed =
+        window.confirm(
+          `¿Eliminar ${selectedRecords.length} registro(s) de asistencia del día ${selectedDate}?`
         );
+
+      if (!confirmed) {
+        return;
       }
 
-      setRecords(prev =>
-        prev.filter(
-          record =>
-            !selectedRecords.includes(
-              record.id
+      try {
+        const token =
+          localStorage.getItem(
+            'token'
+          );
+
+        if (!token) {
+          alert(
+            'Sesión no encontrada.'
+          );
+          return;
+        }
+
+        setDeletingSelected(true);
+
+        const response =
+          await fetch(
+            `${API_URL}/api/asistencias/eliminar-masivo`,
+            {
+              method: 'DELETE',
+
+              headers: {
+                'Content-Type':
+                  'application/json',
+
+                Authorization:
+                  `Bearer ${token}`,
+              },
+
+              body: JSON.stringify({
+                ids:
+                  selectedRecords,
+
+                fecha:
+                  selectedDate,
+              }),
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.mensaje ||
+              'No se pudieron eliminar las asistencias.'
+          );
+        }
+
+        setRecords(
+          prev =>
+            prev.filter(
+              record =>
+                !selectedRecords.includes(
+                  record.id
+                )
             )
-        )
-      );
+        );
 
-      setSelectedRecords([]);
+        setSelectedRecords([]);
 
-      alert(
-        data.mensaje ||
-          'Asistencias eliminadas correctamente.'
-      );
-    } catch (error) {
-      console.error(
-        'Error eliminando asistencias:',
-        error
-      );
+        alert(
+          data.mensaje ||
+            'Asistencias eliminadas correctamente.'
+        );
+      } catch (error) {
+        console.error(
+          'Error eliminando asistencias:',
+          error
+        );
 
-      alert(
-        error instanceof Error
-          ? error.message
-          : 'No se pudieron eliminar las asistencias.'
-      );
-    } finally {
-      setDeletingSelected(false);
-    }
-  };
+        alert(
+          error instanceof Error
+            ? error.message
+            : 'No se pudieron eliminar las asistencias.'
+        );
+      } finally {
+        setDeletingSelected(false);
+      }
+    };
 
   /* =========================================================
      INFORMACIÓN DEL TURNO
@@ -634,11 +899,16 @@ export default function Attendance({
   const getShiftInfo = (
     shift: string
   ) => {
-    const turno = shiftTypes.find(
-      t =>
-        t.name.trim().toLowerCase() ===
-        shift.trim().toLowerCase()
-    );
+    const turno =
+      shiftTypes.find(
+        t =>
+          t.name
+            .trim()
+            .toLowerCase() ===
+          shift
+            .trim()
+            .toLowerCase()
+      );
 
     if (!turno) {
       return {
@@ -650,7 +920,10 @@ export default function Attendance({
 
     let hours = 0;
 
-    if (turno.start && turno.end) {
+    if (
+      turno.start &&
+      turno.end
+    ) {
       const [sh, sm] =
         turno.start
           .split(':')
@@ -667,12 +940,17 @@ export default function Attendance({
       let endMin =
         eh * 60 + em;
 
-      if (endMin < startMin) {
-        endMin += 24 * 60;
+      if (
+        endMin <
+        startMin
+      ) {
+        endMin +=
+          24 * 60;
       }
 
       hours =
-        (endMin - startMin) / 60;
+        (endMin - startMin) /
+        60;
 
       if (
         turno.isSplit &&
@@ -695,20 +973,35 @@ export default function Attendance({
         let end2Min =
           e2h * 60 + e2m;
 
-        if (end2Min < start2Min) {
-          end2Min += 24 * 60;
+        if (
+          end2Min <
+          start2Min
+        ) {
+          end2Min +=
+            24 * 60;
         }
 
         hours +=
-          (end2Min - start2Min) / 60;
+          (end2Min -
+            start2Min) /
+          60;
       }
-    } else if (turno.hours) {
-      hours = Number(turno.hours);
+    } else if (
+      turno.hours
+    ) {
+      hours =
+        Number(
+          turno.hours
+        );
     }
 
     return {
-      start: turno.start || '',
-      end: turno.end || '',
+      start:
+        turno.start || '',
+
+      end:
+        turno.end || '',
+
       hours,
     };
   };
@@ -722,7 +1015,10 @@ export default function Attendance({
     scheduled: string,
     real: string
   ) => {
-    if (!scheduled || !real) {
+    if (
+      !scheduled ||
+      !real
+    ) {
       return 0;
     }
 
@@ -743,7 +1039,8 @@ export default function Attendance({
       rh * 60 + rm;
 
     const diff =
-      realMin - scheduledMin;
+      realMin -
+      scheduledMin;
 
     return diff > 10
       ? diff - 10
@@ -754,284 +1051,287 @@ export default function Attendance({
      GUARDAR ASISTENCIA MANUAL
   ========================================================= */
 
-  const saveAttendance = async (
-    assignment: Assignment,
-    realStart: string,
-    discount: boolean
-  ) => {
-    try {
-      const token =
-        localStorage.getItem('token');
+  const saveAttendance =
+    async (
+      assignment: Assignment,
+      realStart: string,
+      discount: boolean
+    ) => {
+      try {
+        const token =
+          localStorage.getItem(
+            'token'
+          );
 
-      if (!token) {
-        alert('Sesión no encontrada.');
-        return;
-      }
+        if (!token) {
+          alert(
+            'Sesión no encontrada.'
+          );
+          return;
+        }
 
-      if (!realStart) {
-        alert(
-          'Debes ingresar la hora real de entrada.'
-        );
-        return;
-      }
+        if (!realStart) {
+          alert(
+            'Debes ingresar la hora real de entrada.'
+          );
+          return;
+        }
 
-      /* -----------------------------------------------------
-         BUSCAR EMPLEADO
-      ----------------------------------------------------- */
+        const employee =
+          employees.find(
+            emp =>
+              normalizeText(
+                emp.name
+              ) ===
+              normalizeText(
+                assignment.employee
+              )
+          );
 
-      const employee =
-        employees.find(
-          emp =>
-            normalizeText(emp.name) ===
-            normalizeText(
-              assignment.employee
-            )
-        );
+        if (!employee) {
+          alert(
+            'No se encontró el empleado en el sistema.'
+          );
+          return;
+        }
 
-      if (!employee) {
-        alert(
-          'No se encontró el empleado en el sistema.'
-        );
-        return;
-      }
+        const sedesResponse =
+          await fetch(
+            `${API_URL}/api/sedes`,
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
 
-      /* -----------------------------------------------------
-         BUSCAR SEDE
-      ----------------------------------------------------- */
+        if (!sedesResponse.ok) {
+          throw new Error(
+            'No se pudieron obtener las sedes.'
+          );
+        }
 
-      const sedesResponse =
-        await fetch(
-          `${API_URL}/api/sedes`,
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-          }
-        );
+        const sedes =
+          await sedesResponse.json();
 
-      if (!sedesResponse.ok) {
-        throw new Error(
-          'No se pudieron obtener las sedes.'
-        );
-      }
+        const assignmentBranch =
+          resolveBranch(
+            assignment.branch
+          );
 
-      const sedes =
-        await sedesResponse.json();
+        const sede =
+          sedes.find(
+            (sede: any) =>
+              resolveBranch(
+                sede.nombre
+              ) ===
+              assignmentBranch
+          );
 
-      const sede =
-        sedes.find(
-          (sede: any) =>
-            normalizeText(
-              sede.nombre
-            ) ===
-            normalizeText(
-              assignment.branch
-            )
-        );
+        if (!sede) {
+          alert(
+            `No se encontró la sede ${assignment.branch}.`
+          );
+          return;
+        }
 
-      if (!sede) {
-        alert(
-          `No se encontró la sede ${assignment.branch}.`
-        );
-        return;
-      }
-
-      /* -----------------------------------------------------
-         EVITAR DUPLICADOS
-      ----------------------------------------------------- */
-
-      const alreadyExists =
-        records.some(
-          record =>
-            record.date === selectedDate &&
-            Number(
-              record.employeeId
-            ) ===
-              Number(employee.id) &&
-            Number(
-              record.branchId
-            ) ===
-              Number(sede.id)
-        );
-
-      if (alreadyExists) {
-        alert(
-          'Ya existe una asistencia registrada para este empleado, sede y fecha.'
-        );
-        return;
-      }
-
-      /* -----------------------------------------------------
-         CALCULAR TURNO
-      ----------------------------------------------------- */
-
-      const info =
-        getShiftInfo(
-          assignment.shift
-        );
-
-      if (!info.start) {
-        alert(
-          `No se encontró la hora de inicio del turno "${assignment.shift}".`
-        );
-        return;
-      }
-
-      const lateMinutes =
-        calculateLate(
-          info.start,
-          realStart
-        );
-
-      const paidHours = discount
-        ? Math.max(
-            info.hours -
-              lateMinutes / 60,
-            0
-          )
-        : info.hours;
-
-      /* -----------------------------------------------------
-         GUARDAR EN BACKEND / NEON
-      ----------------------------------------------------- */
-
-      const response =
-        await fetch(
-          `${API_URL}/api/asistencias`,
-          {
-            method: 'POST',
-
-            headers: {
-              'Content-Type':
-                'application/json',
-
-              Authorization:
-                `Bearer ${token}`,
-            },
-
-            body: JSON.stringify({
-              empleado_id:
-                Number(employee.id),
-
-              sede_id:
-                Number(sede.id),
-
-              fecha:
-                selectedDate,
-
-              scheduled_start:
-                info.start,
-
-              real_start:
-                realStart,
-
-              late_minutes:
-                lateMinutes,
-
-              discount,
-
-              paid_hours:
+        const alreadyExists =
+          records.some(
+            record =>
+              record.date ===
+                selectedDate &&
+              Number(
+                record.employeeId
+              ) ===
                 Number(
-                  paidHours.toFixed(2)
-                ),
+                  employee.id
+                ) &&
+              Number(
+                record.branchId
+              ) ===
+                Number(sede.id)
+          );
 
-              hora_entrada:
-                realStart,
+        if (alreadyExists) {
+          alert(
+            'Ya existe una asistencia registrada para este empleado, sede y fecha.'
+          );
+          return;
+        }
 
-              hora_salida:
-                null,
+        const info =
+          getShiftInfo(
+            assignment.shift
+          );
 
-              estado:
-                'Registrada',
+        if (!info.start) {
+          alert(
+            `No se encontró la hora de inicio del turno "${assignment.shift}".`
+          );
+          return;
+        }
 
-              observacion:
-                null,
-            }),
-          }
+        const lateMinutes =
+          calculateLate(
+            info.start,
+            realStart
+          );
+
+        const paidHours =
+          discount
+            ? Math.max(
+                info.hours -
+                  lateMinutes / 60,
+                0
+              )
+            : info.hours;
+
+        const response =
+          await fetch(
+            `${API_URL}/api/asistencias`,
+            {
+              method: 'POST',
+
+              headers: {
+                'Content-Type':
+                  'application/json',
+
+                Authorization:
+                  `Bearer ${token}`,
+              },
+
+              body: JSON.stringify({
+                empleado_id:
+                  Number(
+                    employee.id
+                  ),
+
+                sede_id:
+                  Number(
+                    sede.id
+                  ),
+
+                fecha:
+                  selectedDate,
+
+                scheduled_start:
+                  info.start,
+
+                real_start:
+                  realStart,
+
+                late_minutes:
+                  lateMinutes,
+
+                discount,
+
+                paid_hours:
+                  Number(
+                    paidHours.toFixed(
+                      2
+                    )
+                  ),
+
+                hora_entrada:
+                  realStart,
+
+                hora_salida:
+                  null,
+
+                estado:
+                  'Registrada',
+
+                observacion:
+                  null,
+              }),
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.mensaje ||
+              'No se pudo guardar la asistencia.'
+          );
+        }
+
+        const newRecord:
+          AttendanceRecord = {
+          id:
+            Number(data.id),
+
+          employeeId:
+            Number(
+              data.empleado_id
+            ),
+
+          branchId:
+            Number(
+              data.sede_id
+            ),
+
+          employee:
+            assignment.employee,
+
+          branch:
+            assignment.branch,
+
+          date:
+            String(
+              data.fecha ||
+                selectedDate
+            ).slice(0, 10),
+
+          scheduledStart:
+            data.scheduled_start ||
+            info.start,
+
+          realStart:
+            data.real_start ||
+            realStart,
+
+          lateMinutes:
+            Number(
+              data.late_minutes
+            ) || 0,
+
+          discount:
+            Boolean(
+              data.discount
+            ),
+
+          paidHours:
+            Number(
+              data.paid_hours
+            ) || 0,
+        };
+
+        setRecords(
+          prev => [
+            ...prev,
+            newRecord,
+          ]
         );
 
-      const data =
-        await response.json();
+        alert(
+          'Asistencia guardada correctamente.'
+        );
+      } catch (error) {
+        console.error(
+          'Error guardando asistencia:',
+          error
+        );
 
-      if (!response.ok) {
-        throw new Error(
-          data.mensaje ||
-            'No se pudo guardar la asistencia.'
+        alert(
+          error instanceof Error
+            ? error.message
+            : 'No se pudo guardar la asistencia.'
         );
       }
-
-      /* -----------------------------------------------------
-         ACTUALIZAR SOLAMENTE LA VISTA
-         EL DATO REAL YA QUEDÓ EN NEON
-      ----------------------------------------------------- */
-
-      const newRecord: AttendanceRecord = {
-        id: Number(data.id),
-
-        employeeId:
-          Number(data.empleado_id),
-
-        branchId:
-          Number(data.sede_id),
-
-        employee:
-          assignment.employee,
-
-        branch:
-          assignment.branch,
-
-        date:
-          String(
-            data.fecha ||
-              selectedDate
-          ).slice(0, 10),
-
-        scheduledStart:
-          data.scheduled_start ||
-          info.start,
-
-        realStart:
-          data.real_start ||
-          realStart,
-
-        lateMinutes:
-          Number(
-            data.late_minutes
-          ) || 0,
-
-        discount:
-          Boolean(
-            data.discount
-          ),
-
-        paidHours:
-          Number(
-            data.paid_hours
-          ) || 0,
-      };
-
-      setRecords(prev => [
-        ...prev,
-        newRecord,
-      ]);
-
-      alert(
-        'Asistencia guardada correctamente.'
-      );
-    } catch (error) {
-      console.error(
-        'Error guardando asistencia:',
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : 'No se pudo guardar la asistencia.'
-      );
-    }
-  };
+    };
 
   /* =========================================================
      IMPORTAR LOG
@@ -1071,69 +1371,142 @@ export default function Attendance({
           XLSX.read(data, {
             type: 'array',
             cellDates: true,
+            raw: false,
           });
 
-        const firstSheetName =
-          workbook.SheetNames[0];
-
-        if (!firstSheetName) {
+        if (
+          !workbook.SheetNames ||
+          workbook.SheetNames.length === 0
+        ) {
           alert(
             'El archivo no contiene hojas.'
           );
           return;
         }
 
-        const worksheet =
-          workbook.Sheets[
-            firstSheetName
-          ];
+        /* =====================================================
+           LEER TODAS LAS HOJAS
+        ===================================================== */
 
-        const rows =
-          XLSX.utils.sheet_to_json<
-            Record<string, unknown>
-          >(worksheet, {
-            defval: '',
-          });
+        const rows:
+          Record<string, unknown>[] = [];
 
-        if (rows.length === 0) {
+        workbook.SheetNames.forEach(
+          sheetName => {
+            const worksheet =
+              workbook.Sheets[
+                sheetName
+              ];
+
+            if (!worksheet) {
+              return;
+            }
+
+            const sheetRows =
+              XLSX.utils.sheet_to_json<
+                Record<string, unknown>
+              >(worksheet, {
+                defval: '',
+                raw: false,
+              });
+
+            rows.push(
+              ...sheetRows
+            );
+          }
+        );
+
+        if (
+          rows.length === 0
+        ) {
           alert(
             'El archivo no contiene registros.'
           );
           return;
         }
 
-        /* =================================================
+        /* =====================================================
            DETECTAR COLUMNAS
-        ================================================= */
+        ===================================================== */
 
-        const firstRow =
-          rows[0];
-
-        const keys =
-          Object.keys(firstRow);
+        const allKeys =
+          Array.from(
+            new Set(
+              rows.flatMap(row =>
+                Object.keys(row)
+              )
+            )
+          );
 
         const findColumn = (
           possibleNames: string[]
-        ) => {
-          return keys.find(
-            key =>
-              possibleNames.includes(
+        ): string | undefined => {
+          const normalizedPossibleNames =
+            possibleNames.map(
+              normalizeText
+            );
+
+          const exact =
+            allKeys.find(key =>
+              normalizedPossibleNames.includes(
                 normalizeText(key)
               )
+            );
+
+          if (exact) {
+            return exact;
+          }
+
+          return allKeys.find(
+            key => {
+              const normalizedKey =
+                normalizeText(
+                  key
+                ).replace(
+                  /[^A-Z0-9]/g,
+                  ''
+                );
+
+              return normalizedPossibleNames.some(
+                possible => {
+                  const normalizedPossible =
+                    possible.replace(
+                      /[^A-Z0-9]/g,
+                      ''
+                    );
+
+                  return (
+                    normalizedKey ===
+                      normalizedPossible ||
+                    normalizedKey.includes(
+                      normalizedPossible
+                    )
+                  );
+                }
+              );
+            }
           );
         };
 
         const dateColumn =
           findColumn([
             'FECHA',
+            'FECHA REGISTRO',
             'FECHAHORA',
             'FECHA HORA',
+            'FECHA Y HORA',
+            'FECHA/HORA',
+            'DATE',
           ]);
 
         const timeColumn =
           findColumn([
             'HORA',
             'HORA DE ENTRADA',
+            'HORA ENTRADA',
+            'HORA REGISTRO',
+            'HORA DEL REGISTRO',
+            'TIME',
           ]);
 
         const usernameColumn =
@@ -1141,12 +1514,18 @@ export default function Attendance({
             'USUARIO',
             'USER',
             'USERNAME',
+            'USUARIO RED',
+            'ID USUARIO',
+            'LOGIN',
           ]);
 
         const nameColumn =
           findColumn([
             'NOMBRE',
             'NOMBRE USUARIO',
+            'NOMBRE DEL USUARIO',
+            'EMPLEADO',
+            'NOMBRE EMPLEADO',
           ]);
 
         const pcColumn =
@@ -1154,6 +1533,11 @@ export default function Attendance({
             'PC',
             'EQUIPO',
             'COMPUTADOR',
+            'COMPUTADORA',
+            'NOMBRE PC',
+            'NOMBRE EQUIPO',
+            'EQUIPO PC',
+            'TERMINAL',
           ]);
 
         if (
@@ -1168,24 +1552,21 @@ export default function Attendance({
 Se necesitan:
 
 Fecha
-
 Hora
-
 Usuario
-
 PC
 
 Columnas encontradas:
 
-${keys.join(', ')}`
+${allKeys.join(', ')}`
           );
 
           return;
         }
 
-        /* =================================================
+        /* =====================================================
            PROCESAR LOG
-        ================================================= */
+        ===================================================== */
 
         type LogRecord = {
           date: string;
@@ -1198,6 +1579,9 @@ ${keys.join(', ')}`
 
         const logRecords:
           LogRecord[] = [];
+
+        const unknownBranches =
+          new Set<string>();
 
         rows.forEach(row => {
           const date =
@@ -1212,13 +1596,15 @@ ${keys.join(', ')}`
 
           const username =
             String(
-              row[usernameColumn] ?? ''
+              row[usernameColumn] ??
+                ''
             ).trim();
 
           const name =
             nameColumn
               ? String(
-                  row[nameColumn] ?? ''
+                  row[nameColumn] ??
+                    ''
                 ).trim()
               : '';
 
@@ -1237,9 +1623,13 @@ ${keys.join(', ')}`
           }
 
           const branch =
-            PC_TO_BRANCH[pc];
+            resolveBranch(pc);
 
           if (!branch) {
+            unknownBranches.add(
+              pc
+            );
+
             return;
           }
 
@@ -1254,17 +1644,29 @@ ${keys.join(', ')}`
         });
 
         if (
-          logRecords.length === 0
+          logRecords.length ===
+          0
         ) {
-          alert(
-            'No se encontraron registros válidos en el archivo.'
-          );
+          let message =
+            'No se encontraron registros válidos en el archivo.';
+
+          if (
+            unknownBranches.size >
+            0
+          ) {
+            message +=
+              `\n\nSedes/PC no reconocidos:\n${Array.from(
+                unknownBranches
+              ).join('\n')}`;
+          }
+
+          alert(message);
           return;
         }
 
-        /* =================================================
+        /* =====================================================
            AGRUPAR POR FECHA + USUARIO + SEDE
-        ================================================= */
+        ===================================================== */
 
         const grouped =
           new Map<
@@ -1272,29 +1674,33 @@ ${keys.join(', ')}`
             LogRecord[]
           >();
 
-        logRecords.forEach(log => {
-          const key =
-            `${log.date}|${normalizeText(
-              log.username
-            )}|${normalizeText(
-              log.branch
-            )}`;
+        logRecords.forEach(
+          log => {
+            const key =
+              `${log.date}|${normalizeText(
+                log.username
+              )}|${resolveBranch(
+                log.branch
+              )}`;
 
-          if (!grouped.has(key)) {
-            grouped.set(
-              key,
-              []
-            );
+            if (
+              !grouped.has(key)
+            ) {
+              grouped.set(
+                key,
+                []
+              );
+            }
+
+            grouped
+              .get(key)!
+              .push(log);
           }
+        );
 
-          grouped
-            .get(key)!
-            .push(log);
-        });
-
-        /* =================================================
+        /* =====================================================
            VALIDAR SESIÓN
-        ================================================= */
+        ===================================================== */
 
         const token =
           localStorage.getItem(
@@ -1308,9 +1714,9 @@ ${keys.join(', ')}`
           return;
         }
 
-        /* =================================================
+        /* =====================================================
            CARGAR SEDES
-        ================================================= */
+        ===================================================== */
 
         const sedesResponse =
           await fetch(
@@ -1332,9 +1738,32 @@ ${keys.join(', ')}`
         const sedes =
           await sedesResponse.json();
 
-        /* =================================================
+        /* =====================================================
+           MAPA DE SEDES
+        ===================================================== */
+
+        const sedeMap =
+          new Map<string, any>();
+
+        sedes.forEach(
+          (sede: any) => {
+            const branch =
+              resolveBranch(
+                sede.nombre
+              );
+
+            if (branch) {
+              sedeMap.set(
+                branch,
+                sede
+              );
+            }
+          }
+        );
+
+        /* =====================================================
            PREPARAR REGISTROS
-        ================================================= */
+        ===================================================== */
 
         type PendingAttendance = {
           employeeId: number;
@@ -1355,232 +1784,272 @@ ${keys.join(', ')}`
         const unknownUsers =
           new Set<string>();
 
-        const noAssignment: string[] =
-          [];
+        const noAssignment:
+          string[] = [];
 
-        grouped.forEach(group => {
-          group.sort((a, b) =>
-            a.time.localeCompare(
-              b.time
-            )
-          );
-
-          const first =
-            group[0];
-
-          /* -----------------------------------------------
-             BUSCAR EMPLEADO
-          ----------------------------------------------- */
-
-          const employee =
-            employees.find(
-              emp =>
-                normalizeText(
-                  emp.username
-                ) ===
-                normalizeText(
-                  first.username
+        grouped.forEach(
+          group => {
+            group.sort(
+              (a, b) =>
+                a.time.localeCompare(
+                  b.time
                 )
             );
 
-          if (!employee) {
-            unknownUsers.add(
-              first.username
-            );
-            return;
-          }
+            const first =
+              group[0];
 
-          /* -----------------------------------------------
-             BUSCAR SEDE
-          ----------------------------------------------- */
+            /* ===============================================
+               BUSCAR EMPLEADO
+            =============================================== */
 
-          const sede =
-            sedes.find(
-              (sede: any) =>
-                normalizeText(
-                  sede.nombre
-                ) ===
-                normalizeText(
-                  first.branch
-                )
-            );
-
-          if (!sede) {
-            noAssignment.push(
-              `${first.date} | ${employee.name} | ${first.branch} | Sede no encontrada`
-            );
-
-            return;
-          }
-
-          /* -----------------------------------------------
-             BUSCAR ASIGNACIÓN
-          ----------------------------------------------- */
-
-          const dateParts =
-            first.date.split('-');
-
-          const year =
-            Number(
-              dateParts[0]
-            );
-
-          const month =
-            Number(
-              dateParts[1]
-            ) - 1;
-
-          const day =
-            Number(
-              dateParts[2]
-            );
-
-          const assignment =
-            assignments.find(a => {
-              return (
-                a.day === day &&
-                a.month === month &&
-                a.year === year &&
-                normalizeText(
-                  a.branch
-                ) ===
+            const employee =
+              employees.find(
+                emp =>
                   normalizeText(
-                    first.branch
-                  ) &&
-                normalizeText(
-                  a.employee
-                ) ===
+                    emp.username
+                  ) ===
                   normalizeText(
-                    employee.name
+                    first.username
                   )
               );
-            });
 
-          if (!assignment) {
-            noAssignment.push(
-              `${first.date} | ${employee.name} | ${first.branch}`
-            );
+            if (!employee) {
+              unknownUsers.add(
+                first.username
+              );
 
-            return;
-          }
+              return;
+            }
 
-          /* -----------------------------------------------
-             INFORMACIÓN DEL TURNO
-          ----------------------------------------------- */
+            /* ===============================================
+               BUSCAR SEDE
+            =============================================== */
 
-          const info =
-            getShiftInfo(
-              assignment.shift
-            );
+            const branch =
+              resolveBranch(
+                first.branch
+              );
 
-          if (!info.start) {
-            noAssignment.push(
-              `${first.date} | ${employee.name} | ${first.branch} | Turno sin hora`
-            );
+            if (!branch) {
+              noAssignment.push(
+                `${first.date} | ${employee.name} | ${first.pc} | Sede no reconocida`
+              );
 
-            return;
-          }
+              return;
+            }
 
-          const lateMinutes =
-            calculateLate(
-              info.start,
-              first.time
-            );
+            const sede =
+              sedeMap.get(
+                branch
+              );
 
-          const paidHours =
-            info.hours;
+            if (!sede) {
+              noAssignment.push(
+                `${first.date} | ${employee.name} | ${branch} | Sede no encontrada`
+              );
 
-          /* -----------------------------------------------
-             EVITAR DUPLICADOS EN BASE A LOS CARGADOS
-          ----------------------------------------------- */
+              return;
+            }
 
-          const alreadyExists =
-            records.some(
-              record =>
-                record.date ===
-                  first.date &&
-                Number(
-                  record.employeeId
-                ) ===
-                  Number(
-                    employee.id
-                  ) &&
-                Number(
-                  record.branchId
-                ) ===
-                  Number(
-                    sede.id
-                  )
-            );
+            /* ===============================================
+               FECHA
+            =============================================== */
 
-          if (alreadyExists) {
-            return;
-          }
+            const dateParts =
+              first.date.split(
+                '-'
+              );
 
-          /* -----------------------------------------------
-             EVITAR DUPLICADOS DENTRO DEL ARCHIVO
-          ----------------------------------------------- */
+            if (
+              dateParts.length !==
+              3
+            ) {
+              noAssignment.push(
+                `${first.date} | ${employee.name} | ${branch} | Fecha inválida`
+              );
 
-          const alreadyPending =
-            pendingRecords.some(
-              record =>
-                record.date ===
-                  first.date &&
-                Number(
-                  record.employeeId
-                ) ===
-                  Number(
-                    employee.id
-                  ) &&
-                Number(
-                  record.branchId
-                ) ===
-                  Number(
-                    sede.id
-                  )
-            );
+              return;
+            }
 
-          if (alreadyPending) {
-            return;
-          }
-
-          pendingRecords.push({
-            employeeId:
-              Number(employee.id),
-
-            branchId:
-              Number(sede.id),
-
-            employee:
-              employee.name,
-
-            branch:
-              first.branch,
-
-            date:
-              first.date,
-
-            scheduledStart:
-              info.start,
-
-            realStart:
-              first.time,
-
-            lateMinutes,
-
-            discount:
-              false,
-
-            paidHours:
+            const year =
               Number(
-                paidHours.toFixed(2)
-              ),
-          });
-        });
+                dateParts[0]
+              );
 
-        /* =================================================
-           GUARDAR CADA REGISTRO EN BACKEND
-        ================================================= */
+            const month =
+              Number(
+                dateParts[1]
+              ) - 1;
+
+            const day =
+              Number(
+                dateParts[2]
+              );
+
+            /* ===============================================
+               BUSCAR ASIGNACIÓN
+            =============================================== */
+
+            const assignment =
+              assignments.find(
+                a =>
+                  Number(
+                    a.day
+                  ) === day &&
+                  Number(
+                    a.month
+                  ) === month &&
+                  Number(
+                    a.year
+                  ) === year &&
+                  resolveBranch(
+                    a.branch
+                  ) ===
+                    branch &&
+                  normalizeText(
+                    a.employee
+                  ) ===
+                    normalizeText(
+                      employee.name
+                    )
+              );
+
+            if (!assignment) {
+              noAssignment.push(
+                `${first.date} | ${employee.name} | ${branch}`
+              );
+
+              return;
+            }
+
+            /* ===============================================
+               INFORMACIÓN DEL TURNO
+            =============================================== */
+
+            const info =
+              getShiftInfo(
+                assignment.shift
+              );
+
+            if (!info.start) {
+              noAssignment.push(
+                `${first.date} | ${employee.name} | ${branch} | Turno sin hora`
+              );
+
+              return;
+            }
+
+            /* ===============================================
+               TARDANZA
+            =============================================== */
+
+            const lateMinutes =
+              calculateLate(
+                info.start,
+                first.time
+              );
+
+            const paidHours =
+              info.hours;
+
+            /* ===============================================
+               EVITAR DUPLICADOS
+            =============================================== */
+
+            const alreadyExists =
+              records.some(
+                record =>
+                  record.date ===
+                    first.date &&
+                  Number(
+                    record.employeeId
+                  ) ===
+                    Number(
+                      employee.id
+                    ) &&
+                  Number(
+                    record.branchId
+                  ) ===
+                    Number(
+                      sede.id
+                    )
+              );
+
+            if (
+              alreadyExists
+            ) {
+              return;
+            }
+
+            const alreadyPending =
+              pendingRecords.some(
+                record =>
+                  record.date ===
+                    first.date &&
+                  Number(
+                    record.employeeId
+                  ) ===
+                    Number(
+                      employee.id
+                    ) &&
+                  Number(
+                    record.branchId
+                  ) ===
+                    Number(
+                      sede.id
+                    )
+              );
+
+            if (
+              alreadyPending
+            ) {
+              return;
+            }
+
+            pendingRecords.push({
+              employeeId:
+                Number(
+                  employee.id
+                ),
+
+              branchId:
+                Number(
+                  sede.id
+                ),
+
+              employee:
+                employee.name,
+
+              branch,
+
+              date:
+                first.date,
+
+              scheduledStart:
+                info.start,
+
+              realStart:
+                first.time,
+
+              lateMinutes,
+
+              discount:
+                false,
+
+              paidHours:
+                Number(
+                  paidHours.toFixed(
+                    2
+                  )
+                ),
+            });
+          }
+        );
+
+        /* =====================================================
+           GUARDAR EN BACKEND
+        ===================================================== */
 
         const createdRecords:
           AttendanceRecord[] = [];
@@ -1659,9 +2128,10 @@ ${keys.join(', ')}`
             }
 
             createdRecords.push({
-              id: Number(
-                responseData.id
-              ),
+              id:
+                Number(
+                  responseData.id
+                ),
 
               employeeId:
                 Number(
@@ -1683,7 +2153,10 @@ ${keys.join(', ')}`
                 String(
                   responseData.fecha ||
                     record.date
-                ).slice(0, 10),
+                ).slice(
+                  0,
+                  10
+                ),
 
               scheduledStart:
                 responseData.scheduled_start ||
@@ -1718,41 +2191,62 @@ ${keys.join(', ')}`
           }
         }
 
-        /* =================================================
+        /* =====================================================
            ACTUALIZAR VISTA
-        ================================================= */
+        ===================================================== */
 
         if (
-          createdRecords.length > 0
+          createdRecords.length >
+          0
         ) {
-          setRecords(prev => [
-            ...prev,
-            ...createdRecords,
-          ]);
+          setRecords(
+            prev => [
+              ...prev,
+              ...createdRecords,
+            ]
+          );
         }
 
-        /* =================================================
+        /* =====================================================
            MENSAJE FINAL
-        ================================================= */
+        ===================================================== */
 
         let message =
           `Importación terminada.\n\n` +
-          `Registros del log: ${logRecords.length}\n` +
-          `Asistencias guardadas en la base de datos: ${createdRecords.length}\n` +
+          `Filas leídas del Excel: ${rows.length}\n` +
+          `Registros válidos del log: ${logRecords.length}\n` +
+          `Asistencias guardadas: ${createdRecords.length}\n` +
           `Registros con error: ${failedRecords}`;
 
         if (
-          unknownUsers.size > 0
+          unknownBranches.size >
+          0
+        ) {
+          message +=
+            `\n\nPC/Sedes no reconocidos:\n` +
+            Array.from(
+              unknownBranches
+            )
+              .slice(0, 20)
+              .join('\n');
+        }
+
+        if (
+          unknownUsers.size >
+          0
         ) {
           message +=
             `\n\nUsuarios no encontrados:\n` +
             Array.from(
               unknownUsers
-            ).join(', ');
+            )
+              .slice(0, 20)
+              .join(', ');
         }
 
         if (
-          noAssignment.length > 0
+          noAssignment.length >
+          0
         ) {
           message +=
             `\n\nSin turno o sede asignada:\n` +
@@ -1761,11 +2255,13 @@ ${keys.join(', ')}`
               .join('\n');
 
           if (
-            noAssignment.length > 20
+            noAssignment.length >
+            20
           ) {
             message +=
               `\n... y ${
-                noAssignment.length - 20
+                noAssignment.length -
+                20
               } más.`;
           }
         }
@@ -1773,10 +2269,12 @@ ${keys.join(', ')}`
         alert(message);
 
         if (
-          createdRecords.length > 0
+          createdRecords.length >
+          0
         ) {
           setSelectedDate(
-            createdRecords[0].date
+            createdRecords[0]
+              .date
           );
         }
       } catch (error) {
@@ -1795,7 +2293,9 @@ ${keys.join(', ')}`
       }
     };
 
-    reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(
+      file
+    );
   };
 
   /* =========================================================
@@ -1812,14 +2312,11 @@ ${keys.join(', ')}`
 
     const asistenciaData =
       records.map(r => ({
-        Fecha:
-          r.date,
+        Fecha: r.date,
 
-        Sede:
-          r.branch,
+        Sede: r.branch,
 
-        Empleado:
-          r.employee,
+        Empleado: r.employee,
 
         'Hora programada':
           r.scheduledStart,
@@ -1859,22 +2356,27 @@ ${keys.join(', ')}`
        RESUMEN
     ======================================================= */
 
-    const resumenMap = new Map<
-      string,
-      {
-        Empleado: string;
-        Sede: string;
-        'Días trabajados': number;
-        'Llegadas tarde': number;
-        'Minutos tarde': number;
-        'Horas normales': number;
-        'Horas extra': number;
-        'Horas a pagar': number;
-      }
-    >();
+    const resumenMap =
+      new Map<
+        string,
+        {
+          Empleado: string;
+          Sede: string;
+          'Días trabajados': number;
+          'Llegadas tarde': number;
+          'Minutos tarde': number;
+          'Horas normales': number;
+          'Horas extra': number;
+          'Horas a pagar': number;
+        }
+      >();
 
     records.forEach(r => {
-      if (!resumenMap.has(r.employee)) {
+      if (
+        !resumenMap.has(
+          r.employee
+        )
+      ) {
         resumenMap.set(
           r.employee,
           {
@@ -1910,35 +2412,46 @@ ${keys.join(', ')}`
           r.employee
         )!;
 
-      item['Días trabajados'] +=
-        1;
+      item[
+        'Días trabajados'
+      ] += 1;
 
-      if (r.lateMinutes > 0) {
-        item['Llegadas tarde'] +=
-          1;
+      if (
+        r.lateMinutes > 0
+      ) {
+        item[
+          'Llegadas tarde'
+        ] += 1;
 
-        item['Minutos tarde'] +=
+        item[
+          'Minutos tarde'
+        ] +=
           r.lateMinutes;
       }
 
-      item['Horas a pagar'] +=
-        r.paidHours;
+      item[
+        'Horas a pagar'
+      ] += r.paidHours;
     });
 
-    resumenMap.forEach(item => {
-      item['Horas normales'] =
-        Math.min(
+    resumenMap.forEach(
+      item => {
+        item[
+          'Horas normales'
+        ] = Math.min(
           item['Horas a pagar'],
           210
         );
 
-      item['Horas extra'] =
-        Math.max(
+        item[
+          'Horas extra'
+        ] = Math.max(
           item['Horas a pagar'] -
             210,
           0
         );
-    });
+      }
+    );
 
     const resumenData =
       Array.from(
@@ -2034,7 +2547,9 @@ ${keys.join(', ')}`
           {/* EXPORTAR */}
 
           <button
-            onClick={exportExcel}
+            onClick={
+              exportExcel
+            }
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-medium shadow-sm flex items-center gap-2 transition-colors"
           >
             Excel
@@ -2056,7 +2571,9 @@ ${keys.join(', ')}`
             </label>
 
             <select
-              value={selectedBranch}
+              value={
+                selectedBranch
+              }
               onChange={e =>
                 setSelectedBranch(
                   e.target.value
@@ -2069,14 +2586,18 @@ ${keys.join(', ')}`
                 Todas
               </option>
 
-              {branches.map(branch => (
-                <option
-                  key={branch}
-                  value={branch}
-                >
-                  {branch}
-                </option>
-              ))}
+              {branches.map(
+                branch => (
+                  <option
+                    key={branch}
+                    value={
+                      branch
+                    }
+                  >
+                    {branch}
+                  </option>
+                )
+              )}
 
             </select>
 
@@ -2089,7 +2610,9 @@ ${keys.join(', ')}`
             </label>
 
             <select
-              value={selectedEmployee}
+              value={
+                selectedEmployee
+              }
               onChange={e =>
                 setSelectedEmployee(
                   e.target.value
@@ -2102,14 +2625,16 @@ ${keys.join(', ')}`
                 Todos
               </option>
 
-              {employeesList.map(emp => (
-                <option
-                  key={emp}
-                  value={emp}
-                >
-                  {emp}
-                </option>
-              ))}
+              {employeesList.map(
+                emp => (
+                  <option
+                    key={emp}
+                    value={emp}
+                  >
+                    {emp}
+                  </option>
+                )
+              )}
 
             </select>
 
@@ -2129,30 +2654,37 @@ ${keys.join(', ')}`
 
         <div className="space-y-4">
 
-          {todayAssignments.length === 0 && (
+          {todayAssignments.length ===
+            0 && (
             <p className="text-slate-500">
               No hay turnos programados para esta fecha.
             </p>
           )}
 
-          {todayAssignments.map(a => {
-            const info =
-              getShiftInfo(
-                a.shift
-              );
+          {todayAssignments.map(
+            a => {
+              const info =
+                getShiftInfo(
+                  a.shift
+                );
 
-            return (
-              <AttendanceCard
-                key={a.id}
-                assignment={a}
-                start={info.start}
-                hours={info.hours}
-                onSave={
-                  saveAttendance
-                }
-              />
-            );
-          })}
+              return (
+                <AttendanceCard
+                  key={a.id}
+                  assignment={a}
+                  start={
+                    info.start
+                  }
+                  hours={
+                    info.hours
+                  }
+                  onSave={
+                    saveAttendance
+                  }
+                />
+              );
+            }
+          )}
 
         </div>
 
@@ -2162,7 +2694,7 @@ ${keys.join(', ')}`
 
       <div className="bg-white rounded-2xl border overflow-hidden">
 
-        {/* CABECERA DE REGISTROS */}
+        {/* CABECERA */}
 
         <div className="p-5 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
@@ -2174,18 +2706,20 @@ ${keys.join(', ')}`
               {selectedBranch}
             </h3>
 
-            {selectedRecords.length > 0 && (
+            {selectedRecords.length >
+              0 && (
               <p className="text-sm text-slate-500 mt-1">
-                {selectedRecords.length}{' '}
+                {
+                  selectedRecords.length
+                }{' '}
                 registro(s) seleccionado(s)
               </p>
             )}
 
           </div>
 
-          {/* ELIMINAR SELECCIONADOS */}
-
-          {selectedRecords.length > 0 && (
+          {selectedRecords.length >
+            0 && (
             <button
               onClick={
                 deleteSelectedRecords
@@ -2210,8 +2744,6 @@ ${keys.join(', ')}`
             <thead className="bg-slate-50 text-slate-600">
 
               <tr>
-
-                {/* SELECCIONAR TODOS */}
 
                 <th className="p-4 w-12 text-center">
 
@@ -2288,7 +2820,8 @@ ${keys.join(', ')}`
 
                 </tr>
 
-              ) : filteredRecords.length === 0 ? (
+              ) : filteredRecords.length ===
+                0 ? (
 
                 <tr>
 
@@ -2303,26 +2836,28 @@ ${keys.join(', ')}`
 
               ) : (
 
-                filteredRecords.map(r => (
-
-                  <EditableRow
-                    key={r.id}
-                    record={r}
-                    setRecords={
-                      setRecords
-                    }
-                    apiUrl={API_URL}
-                    selected={
-                      selectedRecords.includes(
-                        r.id
-                      )
-                    }
-                    onToggleSelect={
-                      toggleSelectRecord
-                    }
-                  />
-
-                ))
+                filteredRecords.map(
+                  r => (
+                    <EditableRow
+                      key={r.id}
+                      record={r}
+                      setRecords={
+                        setRecords
+                      }
+                      apiUrl={
+                        API_URL
+                      }
+                      selected={
+                        selectedRecords.includes(
+                          r.id
+                        )
+                      }
+                      onToggleSelect={
+                        toggleSelectRecord
+                      }
+                    />
+                  )
+                )
 
               )}
 
@@ -2355,7 +2890,9 @@ function AttendanceCard({
     assignment: Assignment,
     realStart: string,
     discount: boolean
-  ) => void | Promise<void>;
+  ) =>
+    | void
+    | Promise<void>;
 }) {
   const [realStart, setRealStart] =
     useState(start);
@@ -2396,7 +2933,9 @@ function AttendanceCard({
 
             <input
               type="time"
-              value={realStart}
+              value={
+                realStart
+              }
               onChange={e =>
                 setRealStart(
                   e.target.value
@@ -2411,10 +2950,13 @@ function AttendanceCard({
 
             <input
               type="checkbox"
-              checked={discount}
+              checked={
+                discount
+              }
               onChange={e =>
                 setDiscount(
-                  e.target.checked
+                  e.target
+                    .checked
                 )
               }
             />
@@ -2472,58 +3014,62 @@ function EditableRow({
   ) => void;
 }) {
   const [realStart, setRealStart] =
-    useState(record.realStart);
+    useState(
+      record.realStart
+    );
 
   const [discount, setDiscount] =
-    useState(record.discount);
+    useState(
+      record.discount
+    );
 
   /* =======================================================
      CALCULAR TARDANZA
   ======================================================= */
 
-  const lateMinutes = (() => {
-    if (
-      !record.scheduledStart ||
-      !realStart
-    ) {
-      return 0;
-    }
+  const lateMinutes =
+    (() => {
+      if (
+        !record.scheduledStart ||
+        !realStart
+      ) {
+        return 0;
+      }
 
-    const [sh, sm] =
-      record.scheduledStart
-        .split(':')
-        .map(Number);
+      const [sh, sm] =
+        record.scheduledStart
+          .split(':')
+          .map(Number);
 
-    const [rh, rm] =
-      realStart
-        .split(':')
-        .map(Number);
+      const [rh, rm] =
+        realStart
+          .split(':')
+          .map(Number);
 
-    const scheduledMin =
-      sh * 60 + sm;
+      const scheduledMin =
+        sh * 60 + sm;
 
-    const realMin =
-      rh * 60 + rm;
+      const realMin =
+        rh * 60 + rm;
 
-    const diff =
-      realMin - scheduledMin;
+      const diff =
+        realMin -
+        scheduledMin;
 
-    return diff > 10
-      ? diff - 10
-      : 0;
-  })();
+      return diff > 10
+        ? diff - 10
+        : 0;
+    })();
 
   /* =======================================================
      CALCULAR HORAS A PAGAR
-
-     Recuperamos las horas base para evitar descontar
-     dos veces si se edita y guarda nuevamente.
   ======================================================= */
 
   const baseHours =
     record.discount
       ? record.paidHours +
-        record.lateMinutes / 60
+        record.lateMinutes /
+          60
       : record.paidHours;
 
   const calculatedPaidHours =
@@ -2536,230 +3082,239 @@ function EditableRow({
       : baseHours;
 
   const paidHours =
-    calculatedPaidHours.toFixed(2);
+    calculatedPaidHours.toFixed(
+      2
+    );
 
   /* =======================================================
      GUARDAR CAMBIOS
   ======================================================= */
 
-  const saveChanges = async () => {
-    try {
-      const token =
-        localStorage.getItem(
-          'token'
-        );
+  const saveChanges =
+    async () => {
+      try {
+        const token =
+          localStorage.getItem(
+            'token'
+          );
 
-      if (!token) {
-        alert(
-          'Sesión no encontrada.'
-        );
-        return;
-      }
+        if (!token) {
+          alert(
+            'Sesión no encontrada.'
+          );
+          return;
+        }
 
-      if (!realStart) {
-        alert(
-          'Debes ingresar la hora real.'
-        );
-        return;
-      }
+        if (!realStart) {
+          alert(
+            'Debes ingresar la hora real.'
+          );
+          return;
+        }
 
-      const response =
-        await fetch(
-          `${apiUrl}/api/asistencias/${record.id}`,
-          {
-            method: 'PUT',
+        const response =
+          await fetch(
+            `${apiUrl}/api/asistencias/${record.id}`,
+            {
+              method: 'PUT',
 
-            headers: {
-              'Content-Type':
-                'application/json',
+              headers: {
+                'Content-Type':
+                  'application/json',
 
-              Authorization:
-                `Bearer ${token}`,
-            },
+                Authorization:
+                  `Bearer ${token}`,
+              },
 
-            body: JSON.stringify({
-              empleado_id:
-                record.employeeId,
+              body: JSON.stringify({
+                empleado_id:
+                  record.employeeId,
 
-              sede_id:
-                record.branchId,
+                sede_id:
+                  record.branchId,
 
-              fecha:
-                record.date,
+                fecha:
+                  record.date,
 
-              scheduled_start:
-                record.scheduledStart,
+                scheduled_start:
+                  record.scheduledStart,
 
-              real_start:
-                realStart,
-
-              late_minutes:
-                lateMinutes,
-
-              discount,
-
-              paid_hours:
-                Number(
-                  paidHours
-                ),
-
-              hora_entrada:
-                realStart,
-
-              hora_salida:
-                null,
-
-              estado:
-                'Registrada',
-
-              observacion:
-                null,
-            }),
-          }
-        );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.mensaje ||
-            'No se pudo actualizar la asistencia.'
-        );
-      }
-
-      setRecords(prev =>
-        prev.map(r =>
-          r.id === record.id
-            ? {
-                ...r,
-
-                employeeId:
-                  Number(
-                    data.empleado_id ??
-                      record.employeeId
-                  ),
-
-                branchId:
-                  Number(
-                    data.sede_id ??
-                      record.branchId
-                  ),
-
-                realStart:
-                  data.real_start ||
-                  data.hora_entrada ||
+                real_start:
                   realStart,
 
-                lateMinutes:
-                  Number(
-                    data.late_minutes
-                  ) || 0,
+                late_minutes:
+                  lateMinutes,
 
-                discount:
-                  Boolean(
-                    data.discount
+                discount,
+
+                paid_hours:
+                  Number(
+                    paidHours
                   ),
 
-                paidHours:
-                  Number(
-                    data.paid_hours
-                  ) || 0,
-              }
-            : r
-        )
-      );
+                hora_entrada:
+                  realStart,
 
-      alert(
-        'Asistencia actualizada correctamente.'
-      );
-    } catch (error) {
-      console.error(
-        'Error actualizando asistencia:',
-        error
-      );
+                hora_salida:
+                  null,
 
-      alert(
-        error instanceof Error
-          ? error.message
-          : 'No se pudo actualizar la asistencia.'
-      );
-    }
-  };
+                estado:
+                  'Registrada',
+
+                observacion:
+                  null,
+              }),
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.mensaje ||
+              'No se pudo actualizar la asistencia.'
+          );
+        }
+
+        setRecords(
+          prev =>
+            prev.map(
+              r =>
+                r.id ===
+                record.id
+                  ? {
+                      ...r,
+
+                      employeeId:
+                        Number(
+                          data.empleado_id ??
+                            record.employeeId
+                        ),
+
+                      branchId:
+                        Number(
+                          data.sede_id ??
+                            record.branchId
+                        ),
+
+                      realStart:
+                        data.real_start ||
+                        data.hora_entrada ||
+                        realStart,
+
+                      lateMinutes:
+                        Number(
+                          data.late_minutes
+                        ) || 0,
+
+                      discount:
+                        Boolean(
+                          data.discount
+                        ),
+
+                      paidHours:
+                        Number(
+                          data.paid_hours
+                        ) || 0,
+                    }
+                  : r
+            )
+        );
+
+        alert(
+          'Asistencia actualizada correctamente.'
+        );
+      } catch (error) {
+        console.error(
+          'Error actualizando asistencia:',
+          error
+        );
+
+        alert(
+          error instanceof Error
+            ? error.message
+            : 'No se pudo actualizar la asistencia.'
+        );
+      }
+    };
 
   /* =======================================================
      ELIMINAR
   ======================================================= */
 
-  const deleteRow = async () => {
-    const confirmed =
-      window.confirm(
-        '¿Eliminar este registro de asistencia?'
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      const token =
-        localStorage.getItem(
-          'token'
+  const deleteRow =
+    async () => {
+      const confirmed =
+        window.confirm(
+          '¿Eliminar este registro de asistencia?'
         );
 
-      if (!token) {
-        alert(
-          'Sesión no encontrada.'
-        );
+      if (!confirmed) {
         return;
       }
 
-      const response =
-        await fetch(
-          `${apiUrl}/api/asistencias/${record.id}`,
-          {
-            method: 'DELETE',
+      try {
+        const token =
+          localStorage.getItem(
+            'token'
+          );
 
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-          }
+        if (!token) {
+          alert(
+            'Sesión no encontrada.'
+          );
+          return;
+        }
+
+        const response =
+          await fetch(
+            `${apiUrl}/api/asistencias/${record.id}`,
+            {
+              method: 'DELETE',
+
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.mensaje ||
+              'No se pudo eliminar la asistencia.'
+          );
+        }
+
+        setRecords(
+          prev =>
+            prev.filter(
+              r =>
+                r.id !==
+                record.id
+            )
         );
 
-      const data =
-        await response.json();
+        alert(
+          'Asistencia eliminada correctamente.'
+        );
+      } catch (error) {
+        console.error(
+          'Error eliminando asistencia:',
+          error
+        );
 
-      if (!response.ok) {
-        throw new Error(
-          data.mensaje ||
-            'No se pudo eliminar la asistencia.'
+        alert(
+          error instanceof Error
+            ? error.message
+            : 'No se pudo eliminar la asistencia.'
         );
       }
-
-      setRecords(prev =>
-        prev.filter(
-          r =>
-            r.id !== record.id
-        )
-      );
-
-      alert(
-        'Asistencia eliminada correctamente.'
-      );
-    } catch (error) {
-      console.error(
-        'Error eliminando asistencia:',
-        error
-      );
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : 'No se pudo eliminar la asistencia.'
-      );
-    }
-  };
+    };
 
   /* =======================================================
      FILA
@@ -2767,8 +3322,6 @@ function EditableRow({
 
   return (
     <tr className="hover:bg-slate-50 transition-colors">
-
-      {/* CASILLA DE SELECCIÓN */}
 
       <td className="p-4 w-12 text-center">
 
@@ -2806,7 +3359,9 @@ function EditableRow({
 
         <input
           type="time"
-          value={realStart}
+          value={
+            realStart
+          }
           onChange={e =>
             setRealStart(
               e.target.value
@@ -2819,7 +3374,8 @@ function EditableRow({
 
       <td className="p-4">
 
-        {lateMinutes === 0 ? (
+        {lateMinutes ===
+        0 ? (
 
           <span className="text-green-600 font-medium">
             A tiempo
@@ -2828,7 +3384,8 @@ function EditableRow({
         ) : (
 
           <span className="text-red-600 font-medium">
-            {lateMinutes} min
+            {lateMinutes}{' '}
+            min
           </span>
 
         )}
@@ -2839,10 +3396,13 @@ function EditableRow({
 
         <input
           type="checkbox"
-          checked={discount}
+          checked={
+            discount
+          }
           onChange={e =>
             setDiscount(
-              e.target.checked
+              e.target
+                .checked
             )
           }
           className="h-4 w-4"
@@ -2859,14 +3419,18 @@ function EditableRow({
         <div className="flex gap-2">
 
           <button
-            onClick={saveChanges}
+            onClick={
+              saveChanges
+            }
             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm"
           >
             Guardar
           </button>
 
           <button
-            onClick={deleteRow}
+            onClick={
+              deleteRow
+            }
             className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-sm"
           >
             Eliminar
