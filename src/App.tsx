@@ -1389,9 +1389,7 @@ export default function App() {
                 assignments
               }
 
-              setPage={
-                setPage
-              }
+             
 
               selectedBranch={
                 selectedBranch

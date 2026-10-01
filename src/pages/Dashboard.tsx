@@ -49,7 +49,7 @@ type DashboardProps = {
   employees: Employee[];
   assignments: Assignment[];
   shiftTypes: ShiftType[];
-  setPage?: (page: string) => void;
+ 
   selectedBranch?: string;
   setSelectedBranch?: (branch: string) => void;
 };
