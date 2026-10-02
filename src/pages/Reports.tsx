@@ -152,92 +152,20 @@ const formatDate = (value?: string | null): string => {
   ).padStart(2, "0")}/${parts.year}`;
 };
 
-const getDaysInMonth = (year: number, month: number): number => {
+const getDaysInMonth = (
+  year: number,
+  month: number
+): number => {
   return new Date(year, month, 0).getDate();
 };
 
 /* =========================================================
-   HORAS
+   NORMALIZACIÓN
    ========================================================= */
 
-const timeToMinutes = (time?: string): number | null => {
-  if (!time) return null;
-
-  const clean = String(time).trim();
-
-  const match = clean.match(/^(\d{1,2}):(\d{2})/);
-
-  if (!match) return null;
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-
-  if (
-    Number.isNaN(hours) ||
-    Number.isNaN(minutes) ||
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59
-  ) {
-    return null;
-  }
-
-  return hours * 60 + minutes;
-};
-
-const calculateTimeDifference = (
-  start?: string,
-  end?: string
-): number => {
-  const startMinutes = timeToMinutes(start);
-  const endMinutes = timeToMinutes(end);
-
-  if (startMinutes === null || endMinutes === null) {
-    return 0;
-  }
-
-  let difference = endMinutes - startMinutes;
-
-  if (difference < 0) {
-    difference += 24 * 60;
-  }
-
-  return difference / 60;
-};
-
-const calculateHours = (
-  start?: string,
-  end?: string,
-  start2?: string,
-  end2?: string,
-  hours?: string | number
-): number => {
-  const hasSplit =
-    Boolean(start2 && end2) ||
-    Boolean(start && end && start2 && end2);
-
-  if (hasSplit) {
-    const first = calculateTimeDifference(start, end);
-    const second = calculateTimeDifference(start2, end2);
-
-    if (first > 0 || second > 0) {
-      return Number((first + second).toFixed(2));
-    }
-  }
-
-  if (start && end) {
-    const calculated = calculateTimeDifference(start, end);
-
-    if (calculated > 0) {
-      return Number(calculated.toFixed(2));
-    }
-  }
-
-  return Number(hours) || 0;
-};
-
-const normalizeText = (value?: string | null): string => {
+const normalizeText = (
+  value?: string | null
+): string => {
   return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -254,13 +182,17 @@ const getNoveltyDaysInSelectedMonth = (
   selectedYear: number,
   selectedMonth: number
 ): number => {
-  const startParts = getDateParts(novelty.fecha_inicio);
+  const startParts = getDateParts(
+    novelty.fecha_inicio
+  );
 
   if (!startParts) return 0;
 
   const endParts =
-    getDateParts(novelty.fecha_fin || novelty.fecha_inicio) ||
-    startParts;
+    getDateParts(
+      novelty.fecha_fin ||
+        novelty.fecha_inicio
+    ) || startParts;
 
   const selectedStart = dateToNumber(
     selectedYear,
@@ -271,7 +203,10 @@ const getNoveltyDaysInSelectedMonth = (
   const selectedEnd = dateToNumber(
     selectedYear,
     selectedMonth + 1,
-    getDaysInMonth(selectedYear, selectedMonth + 1)
+    getDaysInMonth(
+      selectedYear,
+      selectedMonth + 1
+    )
   );
 
   const noveltyStart = dateToNumber(
@@ -303,14 +238,24 @@ const getNoveltyDaysInSelectedMonth = (
     selectedEnd
   );
 
-  const startYear = Math.floor(effectiveStart / 10000);
-  const startMonth =
-    Math.floor((effectiveStart % 10000) / 100);
+  const startYear = Math.floor(
+    effectiveStart / 10000
+  );
+
+  const startMonth = Math.floor(
+    (effectiveStart % 10000) / 100
+  );
+
   const startDay = effectiveStart % 100;
 
-  const endYear = Math.floor(effectiveEnd / 10000);
-  const endMonth =
-    Math.floor((effectiveEnd % 10000) / 100);
+  const endYear = Math.floor(
+    effectiveEnd / 10000
+  );
+
+  const endMonth = Math.floor(
+    (effectiveEnd % 10000) / 100
+  );
+
   const endDay = effectiveEnd % 100;
 
   const startDate = new Date(
@@ -327,7 +272,8 @@ const getNoveltyDaysInSelectedMonth = (
 
   const difference =
     Math.floor(
-      (endDate.getTime() - startDate.getTime()) /
+      (endDate.getTime() -
+        startDate.getTime()) /
         (1000 * 60 * 60 * 24)
     ) + 1;
 
@@ -344,33 +290,32 @@ const Reports: React.FC<ReportsProps> = ({
 }) => {
   const today = new Date();
 
-  const [selectedMonth, setSelectedMonth] = useState(
-    today.getMonth()
-  );
+  const [selectedMonth, setSelectedMonth] =
+    useState(today.getMonth());
 
-  const [selectedYear, setSelectedYear] = useState(
-    today.getFullYear()
-  );
+  const [selectedYear, setSelectedYear] =
+    useState(today.getFullYear());
 
   const [selectedBranch, setSelectedBranch] =
     useState("TODAS");
 
-  const [attendance, setAttendance] = useState<
-    AttendanceRecord[]
-  >([]);
+  const [employees, setEmployees] =
+    useState<EmployeeData[]>([]);
 
-  const [novedades, setNovedades] = useState<Novedad[]>(
-    []
-  );
+  const [attendance, setAttendance] =
+    useState<AttendanceRecord[]>([]);
 
+  const [novedades, setNovedades] =
+    useState<Novedad[]>([]);
 
-  const [branchesData, setBranchesData] = useState<
-    BranchData[]
-  >([]);
+  const [branchesData, setBranchesData] =
+    useState<BranchData[]>([]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
   /* =======================================================
      CARGAR INFORMACIÓN
@@ -385,14 +330,16 @@ const Reports: React.FC<ReportsProps> = ({
     setError("");
 
     try {
-      const token = localStorage.getItem("token");
+      const token =
+        localStorage.getItem("token");
 
       const headers: HeadersInit = {
         "Content-Type": "application/json",
       };
 
       if (token) {
-        headers.Authorization = `Bearer ${token}`;
+        headers.Authorization =
+          `Bearer ${token}`;
       }
 
       const [
@@ -401,18 +348,22 @@ const Reports: React.FC<ReportsProps> = ({
         employeesResponse,
         branchesResponse,
       ] = await Promise.all([
-        fetch(`${API_URL}/api/asistencias`, {
-          headers,
-        }),
-        fetch(`${API_URL}/api/novedades-nomina`, {
-          headers,
-        }),
-        fetch(`${API_URL}/api/empleados`, {
-          headers,
-        }),
-        fetch(`${API_URL}/api/sedes`, {
-          headers,
-        }),
+        fetch(
+          `${API_URL}/api/asistencias`,
+          { headers }
+        ),
+        fetch(
+          `${API_URL}/api/novedades-nomina`,
+          { headers }
+        ),
+        fetch(
+          `${API_URL}/api/empleados`,
+          { headers }
+        ),
+        fetch(
+          `${API_URL}/api/sedes`,
+          { headers }
+        ),
       ]);
 
       if (!attendanceResponse.ok) {
@@ -421,183 +372,321 @@ const Reports: React.FC<ReportsProps> = ({
         );
       }
 
+      if (!employeesResponse.ok) {
+        throw new Error(
+          `Error cargando empleados: ${employeesResponse.status}`
+        );
+      }
+
       const attendanceData =
         await attendanceResponse.json();
+
+      /* =====================================================
+         NOVEDADES
+         ===================================================== */
 
       let novedadesData: Novedad[] = [];
 
       if (novedadesResponse.ok) {
-        const parsed = await novedadesResponse.json();
+        const parsed =
+          await novedadesResponse.json();
 
         if (Array.isArray(parsed)) {
           novedadesData = parsed;
-        } else if (Array.isArray(parsed?.data)) {
+        } else if (
+          Array.isArray(parsed?.data)
+        ) {
           novedadesData = parsed.data;
         } else if (
           Array.isArray(parsed?.novedades)
         ) {
-          novedadesData = parsed.novedades;
+          novedadesData =
+            parsed.novedades;
         }
       }
 
-      let employeesData: EmployeeData[] = [];
+      /* =====================================================
+         EMPLEADOS
+         ===================================================== */
 
-      if (employeesResponse.ok) {
-        const parsedEmployees =
-          await employeesResponse.json();
+      let employeesData: EmployeeData[] =
+        [];
 
-        if (Array.isArray(parsedEmployees)) {
-          employeesData = parsedEmployees;
-        } else if (
-          Array.isArray(parsedEmployees?.data)
-        ) {
-          employeesData = parsedEmployees.data;
-        } else if (
-          Array.isArray(parsedEmployees?.empleados)
-        ) {
-          employeesData = parsedEmployees.empleados;
-        }
+      const parsedEmployees =
+        await employeesResponse.json();
+
+      let rawEmployees: any[] = [];
+
+      if (Array.isArray(parsedEmployees)) {
+        rawEmployees =
+          parsedEmployees;
+      } else if (
+        Array.isArray(
+          parsedEmployees?.data
+        )
+      ) {
+        rawEmployees =
+          parsedEmployees.data;
+      } else if (
+        Array.isArray(
+          parsedEmployees?.empleados
+        )
+      ) {
+        rawEmployees =
+          parsedEmployees.empleados;
       }
 
-      let branchesDataResponse: BranchData[] = [];
+      employeesData =
+        rawEmployees.map(
+          (employee: any) => ({
+            id: Number(
+              employee.id
+            ),
+
+            nombre:
+              employee.nombre ||
+              employee.name ||
+              "",
+
+            documento:
+              employee.documento ||
+              employee.cedula ||
+              "",
+
+            cargo:
+              employee.cargo ||
+              "",
+
+            sede_id:
+              employee.sede_id !==
+              undefined
+                ? Number(
+                    employee.sede_id
+                  )
+                : undefined,
+
+            username:
+              employee.username ||
+              "",
+
+            estado:
+              employee.estado ||
+              "ACTIVO",
+          })
+        );
+
+      /* =====================================================
+         SEDES
+         ===================================================== */
+
+      let branchesDataResponse: BranchData[] =
+        [];
 
       if (branchesResponse.ok) {
         const parsedBranches =
           await branchesResponse.json();
 
         if (Array.isArray(parsedBranches)) {
-          branchesDataResponse = parsedBranches;
+          branchesDataResponse =
+            parsedBranches;
         } else if (
-          Array.isArray(parsedBranches?.data)
+          Array.isArray(
+            parsedBranches?.data
+          )
         ) {
-          branchesDataResponse = parsedBranches.data;
+          branchesDataResponse =
+            parsedBranches.data;
         } else if (
-          Array.isArray(parsedBranches?.sedes)
+          Array.isArray(
+            parsedBranches?.sedes
+          )
         ) {
-          branchesDataResponse = parsedBranches.sedes;
+          branchesDataResponse =
+            parsedBranches.sedes;
         }
       }
 
-      const attendanceArray = Array.isArray(
-        attendanceData
-      )
-        ? attendanceData
-        : Array.isArray(attendanceData?.data)
-        ? attendanceData.data
-        : [];
+      /* =====================================================
+         ASISTENCIAS
+         ===================================================== */
 
-      /* -----------------------------------------------
-         MAPAS DE EMPLEADOS Y SEDES
-         ----------------------------------------------- */
+      const attendanceArray =
+        Array.isArray(attendanceData)
+          ? attendanceData
+          : Array.isArray(
+              attendanceData?.data
+            )
+          ? attendanceData.data
+          : [];
 
-      const employeeMap = new Map<number, EmployeeData>();
+      /* =====================================================
+         MAPAS
+         ===================================================== */
 
-      employeesData.forEach((employee) => {
-        const id = Number(employee.id);
+      const employeeMap =
+        new Map<number, EmployeeData>();
 
-        if (!Number.isNaN(id)) {
-          employeeMap.set(id, employee);
+      employeesData.forEach(
+        (employee) => {
+          const id =
+            Number(employee.id);
+
+          if (
+            !Number.isNaN(id)
+          ) {
+            employeeMap.set(
+              id,
+              employee
+            );
+          }
         }
-      });
+      );
 
-      const branchMap = new Map<number, BranchData>();
+      const branchMap =
+        new Map<number, BranchData>();
 
-      branchesDataResponse.forEach((branch) => {
-        const id = Number(branch.id);
+      branchesDataResponse.forEach(
+        (branch) => {
+          const id =
+            Number(branch.id);
 
-        if (!Number.isNaN(id)) {
-          branchMap.set(id, branch);
+          if (
+            !Number.isNaN(id)
+          ) {
+            branchMap.set(
+              id,
+              branch
+            );
+          }
         }
-      });
+      );
 
-      /* -----------------------------------------------
+      /* =====================================================
          MAPEAR ASISTENCIAS
-         ----------------------------------------------- */
 
-      const mappedAttendance: AttendanceRecord[] =
-        attendanceArray.map((record: any) => {
-          const employeeId =
-            record.empleado_id !== undefined
-              ? Number(record.empleado_id)
-              : undefined;
+         IMPORTANTE:
 
-          const branchId =
-            record.sede_id !== undefined
-              ? Number(record.sede_id)
-              : undefined;
+         lateMinutes y paidHours salen directamente
+         desde /api/asistencias.
+         ===================================================== */
 
-          const employeeData =
-            employeeId !== undefined
-              ? employeeMap.get(employeeId)
-              : undefined;
+      const mappedAttendance:
+        AttendanceRecord[] =
+        attendanceArray.map(
+          (record: any) => {
+            const employeeId =
+              record.empleado_id !==
+              undefined
+                ? Number(
+                    record.empleado_id
+                  )
+                : undefined;
 
-          const branchData =
-            branchId !== undefined
-              ? branchMap.get(branchId)
-              : undefined;
+            const branchId =
+              record.sede_id !==
+              undefined
+                ? Number(
+                    record.sede_id
+                  )
+                : undefined;
 
-          return {
-            id: Number(record.id),
+            const employeeData =
+              employeeId !==
+              undefined
+                ? employeeMap.get(
+                    employeeId
+                  )
+                : undefined;
 
-            employeeId,
+            const branchData =
+              branchId !==
+              undefined
+                ? branchMap.get(
+                    branchId
+                  )
+                : undefined;
 
-            branchId,
-
-            employee:
-              record.empleado_nombre ||
-              record.employee ||
-              record.nombre ||
-              employeeData?.nombre ||
-              "",
-
-            branch:
-              record.sede_nombre ||
-              record.branch ||
-              record.sede ||
-              branchData?.nombre ||
-              "",
-
-            date:
-              record.fecha ||
-              record.date ||
-              "",
-
-            scheduledStart:
-              record.scheduled_start ||
-              record.hora_programada ||
-              "",
-
-            realStart:
-              record.real_start ||
-              record.hora_entrada ||
-              "",
-
-            lateMinutes:
-              Number(
-                record.late_minutes ??
-                  record.minutos_tarde ??
-                  0
+            return {
+              id: Number(
+                record.id
               ),
 
-            discount: Boolean(
-              record.discount ??
-                record.descuento ??
-                false
-            ),
+              employeeId,
 
-            paidHours:
-              Number(
-                record.paid_hours ??
-                  record.horas_pagadas ??
-                  0
-              ) || 0,
-          };
-        });
+              branchId,
 
-    
-      setBranchesData(branchesDataResponse);
-      setAttendance(mappedAttendance);
-      setNovedades(novedadesData);
+              employee:
+                record.empleado_nombre ||
+                record.employee ||
+                record.nombre ||
+                employeeData?.nombre ||
+                "",
+
+              branch:
+                record.sede_nombre ||
+                record.branch ||
+                record.sede ||
+                branchData?.nombre ||
+                "",
+
+              date:
+                record.fecha ||
+                record.date ||
+                "",
+
+              scheduledStart:
+                record.scheduled_start ||
+                record.hora_programada ||
+                "",
+
+              realStart:
+                record.real_start ||
+                record.hora_entrada ||
+                "",
+
+              lateMinutes:
+                Number(
+                  record.late_minutes ??
+                    record.minutos_tarde ??
+                    0
+                ),
+
+              discount: Boolean(
+                record.discount ??
+                  record.descuento ??
+                  false
+              ),
+
+              paidHours:
+                Number(
+                  record.paid_hours ??
+                    record.horas_pagadas ??
+                    0
+                ) || 0,
+            };
+          }
+        );
+
+      /* =====================================================
+         GUARDAR DATOS
+         ===================================================== */
+
+      setEmployees(
+        employeesData
+      );
+
+      setBranchesData(
+        branchesDataResponse
+      );
+
+      setAttendance(
+        mappedAttendance
+      );
+
+      setNovedades(
+        novedadesData
+      );
+
     } catch (err: any) {
       console.error(err);
 
@@ -606,10 +695,11 @@ const Reports: React.FC<ReportsProps> = ({
           "No fue posible cargar la información del reporte."
       );
 
+      setEmployees([]);
       setAttendance([]);
       setNovedades([]);
-      
       setBranchesData([]);
+
     } finally {
       setLoading(false);
     }
@@ -635,7 +725,8 @@ const Reports: React.FC<ReportsProps> = ({
   ];
 
   const years = useMemo(() => {
-    const currentYear = new Date().getFullYear();
+    const currentYear =
+      new Date().getFullYear();
 
     const result: number[] = [];
 
@@ -647,8 +738,14 @@ const Reports: React.FC<ReportsProps> = ({
       result.push(year);
     }
 
-    if (!result.includes(selectedYear)) {
-      result.push(selectedYear);
+    if (
+      !result.includes(
+        selectedYear
+      )
+    ) {
+      result.push(
+        selectedYear
+      );
     }
 
     return result.sort();
@@ -659,34 +756,60 @@ const Reports: React.FC<ReportsProps> = ({
      ======================================================= */
 
   const branches = useMemo(() => {
-    const values = new Set<string>();
+    const values =
+      new Set<string>();
 
-    assignments.forEach((assignment) => {
-      if (assignment.branch) {
-        values.add(assignment.branch);
+    assignments.forEach(
+      (assignment) => {
+        if (
+          assignment.branch
+        ) {
+          values.add(
+            assignment.branch
+          );
+        }
       }
-    });
+    );
 
-    attendance.forEach((record) => {
-      if (record.branch) {
-        values.add(record.branch);
+    attendance.forEach(
+      (record) => {
+        if (record.branch) {
+          values.add(
+            record.branch
+          );
+        }
       }
-    });
+    );
 
-    novedades.forEach((novelty) => {
-      if (novelty.sede_nombre) {
-        values.add(novelty.sede_nombre);
+    novedades.forEach(
+      (novelty) => {
+        if (
+          novelty.sede_nombre
+        ) {
+          values.add(
+            novelty.sede_nombre
+          );
+        }
       }
-    });
+    );
 
-    branchesData.forEach((branch) => {
-      if (branch.nombre) {
-        values.add(branch.nombre);
+    branchesData.forEach(
+      (branch) => {
+        if (branch.nombre) {
+          values.add(
+            branch.nombre
+          );
+        }
       }
-    });
+    );
 
-    return Array.from(values).sort((a, b) =>
-      a.localeCompare(b, "es")
+    return Array.from(
+      values
+    ).sort((a, b) =>
+      a.localeCompare(
+        b,
+        "es"
+      )
     );
   }, [
     assignments,
@@ -699,85 +822,127 @@ const Reports: React.FC<ReportsProps> = ({
      FILTRO DE ASIGNACIONES
      ======================================================= */
 
-  const filteredAssignments = useMemo(() => {
-    return assignments.filter((assignment) => {
-      const correctMonth =
-        Number(assignment.month) === selectedMonth;
+  const filteredAssignments =
+    useMemo(() => {
+      return assignments.filter(
+        (assignment) => {
+          const correctMonth =
+            Number(
+              assignment.month
+            ) === selectedMonth;
 
-      const correctYear =
-        Number(assignment.year) === selectedYear;
+          const correctYear =
+            Number(
+              assignment.year
+            ) === selectedYear;
 
-      const correctBranch =
-        selectedBranch === "TODAS" ||
-        normalizeText(assignment.branch) ===
-          normalizeText(selectedBranch);
+          const correctBranch =
+            selectedBranch ===
+              "TODAS" ||
+            normalizeText(
+              assignment.branch
+            ) ===
+              normalizeText(
+                selectedBranch
+              );
 
-      return (
-        correctMonth &&
-        correctYear &&
-        correctBranch
+          return (
+            correctMonth &&
+            correctYear &&
+            correctBranch
+          );
+        }
       );
-    });
-  }, [
-    assignments,
-    selectedMonth,
-    selectedYear,
-    selectedBranch,
-  ]);
+    }, [
+      assignments,
+      selectedMonth,
+      selectedYear,
+      selectedBranch,
+    ]);
 
   /* =======================================================
      FILTRO ASISTENCIAS
      ======================================================= */
 
-  const filteredAttendance = useMemo(() => {
-    return attendance.filter((record) => {
-      const parts = getDateParts(record.date);
+  const filteredAttendance =
+    useMemo(() => {
+      return attendance.filter(
+        (record) => {
+          const parts =
+            getDateParts(
+              record.date
+            );
 
-      if (!parts) return false;
+          if (!parts) {
+            return false;
+          }
 
-      const correctDate =
-        parts.month === selectedMonth + 1 &&
-        parts.year === selectedYear;
+          const correctDate =
+            parts.month ===
+              selectedMonth + 1 &&
+            parts.year ===
+              selectedYear;
 
-      const correctBranch =
-        selectedBranch === "TODAS" ||
-        normalizeText(record.branch) ===
-          normalizeText(selectedBranch);
+          const correctBranch =
+            selectedBranch ===
+              "TODAS" ||
+            normalizeText(
+              record.branch
+            ) ===
+              normalizeText(
+                selectedBranch
+              );
 
-      return correctDate && correctBranch;
-    });
-  }, [
-    attendance,
-    selectedMonth,
-    selectedYear,
-    selectedBranch,
-  ]);
+          return (
+            correctDate &&
+            correctBranch
+          );
+        }
+      );
+    }, [
+      attendance,
+      selectedMonth,
+      selectedYear,
+      selectedBranch,
+    ]);
 
   /* =======================================================
      FILTRO NOVEDADES
      ======================================================= */
 
-  const filteredNovedades = useMemo(() => {
-    return novedades.filter((novelty) => {
-      const days = getNoveltyDaysInSelectedMonth(
-        novelty,
-        selectedYear,
-        selectedMonth
+  const filteredNovedades =
+    useMemo(() => {
+      return novedades.filter(
+        (novelty) => {
+          const days =
+            getNoveltyDaysInSelectedMonth(
+              novelty,
+              selectedYear,
+              selectedMonth
+            );
+
+          const correctBranch =
+            selectedBranch ===
+              "TODAS" ||
+            normalizeText(
+              novelty.sede_nombre
+            ) ===
+              normalizeText(
+                selectedBranch
+              );
+
+          return (
+            days > 0 &&
+            correctBranch
+          );
+        }
       );
-
-      const correctBranch =
-        selectedBranch === "TODAS" ||
-        normalizeText(novelty.sede_nombre) ===
-          normalizeText(selectedBranch);
-
-      return days > 0 && correctBranch;
-    });
-  }, [
-    novedades,
-    selectedYear,
-    selectedMonth,
-    selectedBranch,
-  ]);
+    }, [
+      novedades,
+      selectedYear,
+      selectedMonth,
+      selectedBranch,
+    ]);
 
   /* =======================================================
      BUSCAR TURNO
@@ -786,65 +951,57 @@ const Reports: React.FC<ReportsProps> = ({
   const findShift = (
     shiftName: string
   ): ShiftType | undefined => {
-    const normalized = normalizeText(shiftName);
+    const normalized =
+      normalizeText(
+        shiftName
+      );
 
     return shiftTypes.find(
       (shift) =>
-        normalizeText(shift.name) === normalized
+        normalizeText(
+          shift.name
+        ) === normalized
     );
   };
 
   /* =======================================================
      HORAS DE ASISTENCIAS
+
+     IMPORTANTE:
+     Las horas salen exclusivamente
+     de /api/asistencias.
      ======================================================= */
 
-  const attendanceWithHours = useMemo(() => {
-    return filteredAttendance.map((record) => {
-      const assignment = filteredAssignments.find(
-        (item) =>
-          normalizeText(item.employee) ===
-            normalizeText(record.employee) &&
-          normalizeText(item.branch) ===
-            normalizeText(record.branch)
-      );
+  const attendanceWithHours =
+    useMemo(() => {
+      return filteredAttendance.map(
+        (record) => {
+          const hours =
+            Number(
+              record.paidHours
+            ) || 0;
 
-      let hours = Number(record.paidHours) || 0;
+          return {
+            ...record,
 
-      if (
-        hours === 0 &&
-        assignment
-      ) {
-        const shift = findShift(assignment.shift);
-
-        if (shift) {
-          hours = calculateHours(
-            shift.start,
-            shift.end,
-            shift.start2,
-            shift.end2,
-            shift.hours
-          );
+            calculatedHours:
+              Number(
+                hours.toFixed(2)
+              ),
+          };
         }
-      }
-
-      return {
-        ...record,
-        calculatedHours: Number(hours.toFixed(2)),
-      };
-    });
-  }, [
-    filteredAttendance,
-    filteredAssignments,
-    shiftTypes,
-  ]);
+      );
+    }, [
+      filteredAttendance,
+    ]);
 
   /* =======================================================
-     EMPLEADOS DEL REPORTE
+     RESUMEN POR EMPLEADO
      ======================================================= */
 
   type EmployeeSummary = {
     employee: string;
-    branch: string;
+    branches: string[];
     daysWorked: number;
     lateCount: number;
     lateMinutes: number;
@@ -856,198 +1013,449 @@ const Reports: React.FC<ReportsProps> = ({
     noveltyTypes: string[];
   };
 
-  const summary = useMemo<EmployeeSummary[]>(() => {
-    const map = new Map<string, EmployeeSummary>();
+  const summary =
+    useMemo<EmployeeSummary[]>(
+      () => {
+        const map =
+          new Map<
+            string,
+            EmployeeSummary
+          >();
 
-    const ensureEmployee = (
-      employee: string,
-      branch: string
-    ) => {
-      const key = `${normalizeText(
-        employee
-      )}|${normalizeText(branch)}`;
+        /* =================================================
+           BUSCAR SEDE POR ID
+           ================================================= */
 
-      if (!map.has(key)) {
-        map.set(key, {
-          employee,
-          branch,
-          daysWorked: 0,
-          lateCount: 0,
-          lateMinutes: 0,
-          normalHours: 0,
-          extraHours: 0,
-          paidHours: 0,
-          noveltyCount: 0,
-          noveltyDays: 0,
-          noveltyTypes: [],
-        });
-      }
+        const getBranchNameById =
+          (
+            branchId?: number
+          ): string => {
+            if (
+              branchId ===
+                undefined ||
+              branchId === null
+            ) {
+              return "";
+            }
 
-      return map.get(key)!;
-    };
+            const branch =
+              branchesData.find(
+                (item) =>
+                  Number(
+                    item.id
+                  ) ===
+                  Number(
+                    branchId
+                  )
+              );
 
-    /* -----------------------------------------------
-       ASISTENCIAS
-       ----------------------------------------------- */
+            return (
+              branch?.nombre ||
+              ""
+            );
+          };
 
-    attendanceWithHours.forEach((record) => {
-      const item = ensureEmployee(
-        record.employee,
-        record.branch
-      );
+        /* =================================================
+           CREAR / BUSCAR EMPLEADO
 
-      item.daysWorked += 1;
+           IMPORTANTE:
+           LA CLAVE ES SOLAMENTE EL EMPLEADO.
 
-      item.lateMinutes +=
-        Number(record.lateMinutes) || 0;
+           NO SE USA LA SEDE COMO CLAVE.
 
-      if ((record.lateMinutes || 0) > 0) {
-        item.lateCount += 1;
-      }
+           Esto permite acumular:
+           PINOS + GUALANDAY + cualquier otra sede
+           en un solo registro del empleado.
+           ================================================= */
 
-      item.paidHours +=
-        Number(record.calculatedHours) || 0;
-    });
+        const ensureEmployee =
+          (
+            employeeName: string,
+            branchName?: string
+          ) => {
+            const cleanEmployee =
+              employeeName?.trim() ||
+              "Empleado sin nombre";
 
-    /* -----------------------------------------------
-       ASIGNACIONES
-       ----------------------------------------------- */
+            const key =
+              normalizeText(
+                cleanEmployee
+              );
 
-    filteredAssignments.forEach((assignment) => {
-      ensureEmployee(
-        assignment.employee,
-        assignment.branch
-      );
-    });
+            if (
+              !map.has(key)
+            ) {
+              map.set(key, {
+                employee:
+                  cleanEmployee,
 
-    /* -----------------------------------------------
-       NOVEDADES
-       ----------------------------------------------- */
+                branches: [],
 
-    filteredNovedades.forEach((novelty) => {
-      const employeeName =
-        novelty.empleado_nombre ||
-        `Empleado ${novelty.empleado_id}`;
+                daysWorked: 0,
 
-      const branch =
-        novelty.sede_nombre ||
-        "SIN SEDE";
+                lateCount: 0,
 
-      const item = ensureEmployee(
-        employeeName,
-        branch
-      );
+                lateMinutes: 0,
 
-      item.noveltyCount += 1;
+                normalHours: 0,
 
-      const days = getNoveltyDaysInSelectedMonth(
-        novelty,
-        selectedYear,
-        selectedMonth
-      );
+                extraHours: 0,
 
-      item.noveltyDays += days;
+                paidHours: 0,
 
-      if (
-        novelty.tipo_novedad &&
-        !item.noveltyTypes.includes(
-          novelty.tipo_novedad
-        )
-      ) {
-        item.noveltyTypes.push(
-          novelty.tipo_novedad
+                noveltyCount: 0,
+
+                noveltyDays: 0,
+
+                noveltyTypes: [],
+              });
+            }
+
+            const item =
+              map.get(key)!;
+
+            const cleanBranch =
+              branchName?.trim() ||
+              "";
+
+            if (
+              cleanBranch &&
+              !item.branches.some(
+                (
+                  existingBranch
+                ) =>
+                  normalizeText(
+                    existingBranch
+                  ) ===
+                  normalizeText(
+                    cleanBranch
+                  )
+              )
+            ) {
+              item.branches.push(
+                cleanBranch
+              );
+            }
+
+            return item;
+          };
+
+        /* =================================================
+           1. TODOS LOS EMPLEADOS
+           ================================================= */
+
+        employees.forEach(
+          (employee) => {
+            const branchName =
+              getBranchNameById(
+                employee.sede_id
+              );
+
+            if (
+              selectedBranch !==
+              "TODAS"
+            ) {
+              const employeeBranch =
+                normalizeText(
+                  branchName
+                );
+
+              const selected =
+                normalizeText(
+                  selectedBranch
+                );
+
+              if (
+                employeeBranch !==
+                selected
+              ) {
+                return;
+              }
+            }
+
+            ensureEmployee(
+              employee.nombre,
+              branchName ||
+                "SIN SEDE"
+            );
+          }
         );
-      }
-    });
 
-    /* -----------------------------------------------
-       HORAS NORMALES / EXTRA
-       ----------------------------------------------- */
+        /* =================================================
+           2. ASISTENCIAS
 
-    map.forEach((item) => {
-      item.paidHours = Number(
-        item.paidHours.toFixed(2)
-      );
+           AQUÍ SE ACUMULAN TODAS LAS HORAS
+           POR EMPLEADO, SIN IMPORTAR LA SEDE.
 
-      item.normalHours = Number(
-        Math.min(
-          item.paidHours,
-          HORAS_NORMALES_MES
-        ).toFixed(2)
-      );
+           Ejemplo:
 
-      item.extraHours = Number(
-        Math.max(
-          item.paidHours -
-            HORAS_NORMALES_MES,
-          0
-        ).toFixed(2)
-      );
-    });
+           PINOS       120
+           GUALANDAY    98
+           ----------------
+           TOTAL       218
 
-    return Array.from(map.values()).sort(
-      (a, b) =>
-        a.employee.localeCompare(
-          b.employee,
-          "es"
-        )
+           Luego se aplican las 210 horas.
+
+           NO se hace:
+           PINOS -> 120 - 210
+           GUALANDAY -> 98 - 210
+           ================================================= */
+
+        attendanceWithHours.forEach(
+          (record) => {
+            const item =
+              ensureEmployee(
+                record.employee,
+                record.branch
+              );
+
+            item.daysWorked += 1;
+
+            const lateMinutes =
+              Number(
+                record.lateMinutes
+              ) || 0;
+
+            item.lateMinutes +=
+              lateMinutes;
+
+            if (
+              lateMinutes > 0
+            ) {
+              item.lateCount += 1;
+            }
+
+            const paidHours =
+              Number(
+                record.calculatedHours
+              ) || 0;
+
+            /*
+             * IMPORTANTE:
+             * Esta suma es por EMPLEADO.
+             * La sede solamente se guarda
+             * como información.
+             */
+            item.paidHours +=
+              paidHours;
+          }
+        );
+
+        /* =================================================
+           3. ASIGNACIONES
+
+           SOLO INFORMACIÓN DE TURNOS.
+
+           NO SUMAN HORAS.
+           ================================================= */
+
+        filteredAssignments.forEach(
+          (assignment) => {
+            ensureEmployee(
+              assignment.employee,
+              assignment.branch
+            );
+          }
+        );
+
+        /* =================================================
+           4. NOVEDADES
+           ================================================= */
+
+        filteredNovedades.forEach(
+          (novelty) => {
+            const employeeName =
+              novelty.empleado_nombre ||
+              `Empleado ${novelty.empleado_id}`;
+
+            const branch =
+              novelty.sede_nombre ||
+              "SIN SEDE";
+
+            const item =
+              ensureEmployee(
+                employeeName,
+                branch
+              );
+
+            item.noveltyCount +=
+              1;
+
+            const days =
+              getNoveltyDaysInSelectedMonth(
+                novelty,
+                selectedYear,
+                selectedMonth
+              );
+
+            item.noveltyDays +=
+              days;
+
+            if (
+              novelty.tipo_novedad &&
+              !item.noveltyTypes.includes(
+                novelty.tipo_novedad
+              )
+            ) {
+              item.noveltyTypes.push(
+                novelty.tipo_novedad
+              );
+            }
+          }
+        );
+
+        /* =================================================
+           5. CALCULAR HORAS NORMALES Y EXTRA
+
+           ESTE CÁLCULO SE HACE DESPUÉS
+           DE HABER SUMADO TODAS LAS HORAS
+           DEL EMPLEADO.
+
+           218 -> 210 normales + 8 extra
+           205 -> 205 normales + 0 extra
+           230 -> 210 normales + 20 extra
+           ================================================= */
+
+        map.forEach(
+          (item) => {
+            /*
+             * Primero se consolida el total
+             * del empleado.
+             */
+            item.paidHours =
+              Number(
+                item.paidHours.toFixed(
+                  2
+                )
+              );
+
+            /*
+             * Después se compara UNA SOLA VEZ
+             * contra las 210 horas mensuales.
+             */
+            item.normalHours =
+              Number(
+                Math.min(
+                  item.paidHours,
+                  HORAS_NORMALES_MES
+                ).toFixed(2)
+              );
+
+            item.extraHours =
+              Number(
+                Math.max(
+                  item.paidHours -
+                    HORAS_NORMALES_MES,
+                  0
+                ).toFixed(2)
+              );
+
+            item.noveltyDays =
+              Number(
+                item.noveltyDays.toFixed(
+                  2
+                )
+              );
+
+            item.branches.sort(
+              (a, b) =>
+                a.localeCompare(
+                  b,
+                  "es"
+                )
+            );
+          }
+        );
+
+        return Array.from(
+          map.values()
+        ).sort((a, b) =>
+          normalizeText(
+            a.employee
+          ).localeCompare(
+            normalizeText(
+              b.employee
+            ),
+            "es"
+          )
+        );
+      },
+      [
+        employees,
+        branchesData,
+        attendanceWithHours,
+        filteredAssignments,
+        filteredNovedades,
+        selectedYear,
+        selectedMonth,
+        selectedBranch,
+      ]
     );
-  }, [
-    attendanceWithHours,
-    filteredAssignments,
-    filteredNovedades,
-    selectedYear,
-    selectedMonth,
-  ]);
 
   /* =======================================================
      KPIs
      ======================================================= */
 
   const kpis = useMemo(() => {
-    const collaborators = summary.length;
+    const collaborators =
+      summary.length;
 
-    const totalHours = summary.reduce(
-      (total, item) =>
-        total + item.paidHours,
-      0
-    );
+    const totalHours =
+      summary.reduce(
+        (total, item) =>
+          total +
+          item.paidHours,
+        0
+      );
 
-    const extraHours = summary.reduce(
-      (total, item) =>
-        total + item.extraHours,
-      0
-    );
+    const extraHours =
+      summary.reduce(
+        (total, item) =>
+          total +
+          item.extraHours,
+        0
+      );
 
-    const lateCount = summary.reduce(
-      (total, item) =>
-        total + item.lateCount,
-      0
-    );
+    const lateCount =
+      summary.reduce(
+        (total, item) =>
+          total +
+          item.lateCount,
+        0
+      );
 
-    const noveltyCount = filteredNovedades.length;
+    const noveltyCount =
+      filteredNovedades.length;
 
-    const noveltyDays = filteredNovedades.reduce(
-      (total, novelty) =>
-        total +
-        getNoveltyDaysInSelectedMonth(
-          novelty,
-          selectedYear,
-          selectedMonth
-        ),
-      0
-    );
+    const noveltyDays =
+      filteredNovedades.reduce(
+        (total, novelty) =>
+          total +
+          getNoveltyDaysInSelectedMonth(
+            novelty,
+            selectedYear,
+            selectedMonth
+          ),
+        0
+      );
 
     return {
       collaborators,
-      totalHours: Number(
-        totalHours.toFixed(2)
-      ),
-      extraHours: Number(
-        extraHours.toFixed(2)
-      ),
+
+      totalHours:
+        Number(
+          totalHours.toFixed(2)
+        ),
+
+      extraHours:
+        Number(
+          extraHours.toFixed(2)
+        ),
+
       lateCount,
+
       noveltyCount,
+
       noveltyDays,
     };
   }, [
@@ -1062,29 +1470,59 @@ const Reports: React.FC<ReportsProps> = ({
      ======================================================= */
 
   const exportExcel = () => {
-    const workbook = XLSX.utils.book_new();
+    const workbook =
+      XLSX.utils.book_new();
 
-    /* -----------------------------------------------
-       HOJA RESUMEN
-       ----------------------------------------------- */
+    /* =====================================================
+       HOJA 1 - RESUMEN
+       ===================================================== */
 
-    const summaryData = summary.map((item) => ({
-      Empleado: item.employee,
-      Sede: item.branch,
-      "Días trabajados": item.daysWorked,
-      "Llegadas tarde": item.lateCount,
-      "Minutos tarde": item.lateMinutes,
-      "Horas normales": item.normalHours,
-      "Horas extra": item.extraHours,
-      "Horas pagadas": item.paidHours,
-      Novedades: item.noveltyCount,
-      "Días de novedad": item.noveltyDays,
-      "Tipos de novedad":
-        item.noveltyTypes.join(", "),
-    }));
+    const summaryData =
+      summary.map(
+        (item) => ({
+          Empleado:
+            item.employee,
+
+          Sedes:
+            item.branches.join(
+              ", "
+            ),
+
+          "Días trabajados":
+            item.daysWorked,
+
+          "Llegadas tarde":
+            item.lateCount,
+
+          "Minutos tarde":
+            item.lateMinutes,
+
+          "Horas normales":
+            item.normalHours,
+
+          "Horas extra":
+            item.extraHours,
+
+          "Horas pagadas":
+            item.paidHours,
+
+          Novedades:
+            item.noveltyCount,
+
+          "Días de novedad":
+            item.noveltyDays,
+
+          "Tipos de novedad":
+            item.noveltyTypes.join(
+              ", "
+            ),
+        })
+      );
 
     const summarySheet =
-      XLSX.utils.json_to_sheet(summaryData);
+      XLSX.utils.json_to_sheet(
+        summaryData
+      );
 
     XLSX.utils.book_append_sheet(
       workbook,
@@ -1092,27 +1530,47 @@ const Reports: React.FC<ReportsProps> = ({
       "Resumen"
     );
 
-    /* -----------------------------------------------
-       ASISTENCIAS
-       ----------------------------------------------- */
+    /* =====================================================
+       HOJA 2 - ASISTENCIAS
+       ===================================================== */
 
     const attendanceData =
-      attendanceWithHours.map((record) => ({
-        Fecha: formatDate(record.date),
-        Sede: record.branch,
-        Empleado: record.employee,
-        "Hora programada":
-          record.scheduledStart || "",
-        "Hora entrada":
-          record.realStart || "",
-        "Minutos tarde":
-          record.lateMinutes,
-        Descuento: record.discount
-          ? "Sí"
-          : "No",
-        "Horas pagadas":
-          record.calculatedHours,
-      }));
+      attendanceWithHours.map(
+        (record) => ({
+          ID:
+            record.id,
+
+          Fecha:
+            formatDate(
+              record.date
+            ),
+
+          Sede:
+            record.branch,
+
+          Empleado:
+            record.employee,
+
+          "Hora programada":
+            record.scheduledStart ||
+            "",
+
+          "Hora entrada":
+            record.realStart ||
+            "",
+
+          "Minutos tarde":
+            record.lateMinutes,
+
+          Descuento:
+            record.discount
+              ? "Sí"
+              : "No",
+
+          "Horas pagadas":
+            record.calculatedHours,
+        })
+      );
 
     const attendanceSheet =
       XLSX.utils.json_to_sheet(
@@ -1125,61 +1583,204 @@ const Reports: React.FC<ReportsProps> = ({
       "Asistencias"
     );
 
-    /* -----------------------------------------------
-       NOVEDADES
-       ----------------------------------------------- */
+    /* =====================================================
+       HOJA 3 - HORAS EXTRA
+       ===================================================== */
+
+    const extraHoursData =
+      summary.map(
+        (item) => ({
+          Empleado:
+            item.employee,
+
+          Sedes:
+            item.branches.join(
+              ", "
+            ),
+
+          "Horas pagadas":
+            item.paidHours,
+
+          "Horas normales":
+            item.normalHours,
+
+          "Horas extra":
+            item.extraHours,
+
+          "Tope horas normales":
+            HORAS_NORMALES_MES,
+
+          "Cálculo":
+            `${item.paidHours} - ${HORAS_NORMALES_MES} = ${item.extraHours}`,
+        })
+      );
+
+    const extraHoursSheet =
+      XLSX.utils.json_to_sheet(
+        extraHoursData
+      );
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      extraHoursSheet,
+      "Horas Extra"
+    );
+
+    /* =====================================================
+       HOJA 4 - LLEGADAS TARDE
+       ===================================================== */
+
+    const lateData =
+      attendanceWithHours
+        .filter(
+          (record) =>
+            Number(
+              record.lateMinutes
+            ) > 0
+        )
+        .map(
+          (record) => ({
+            Fecha:
+              formatDate(
+                record.date
+              ),
+
+            Sede:
+              record.branch,
+
+            Empleado:
+              record.employee,
+
+            "Hora programada":
+              record.scheduledStart ||
+              "",
+
+            "Hora entrada":
+              record.realStart ||
+              "",
+
+            "Minutos tarde":
+              record.lateMinutes,
+
+            Descuento:
+              record.discount
+                ? "Sí"
+                : "No",
+          })
+        );
+
+    const lateSheet =
+      XLSX.utils.json_to_sheet(
+        lateData
+      );
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      lateSheet,
+      "Llegadas Tarde"
+    );
+
+    /* =====================================================
+       HOJA 5 - NOVEDADES
+       ===================================================== */
 
     const noveltyData =
-      filteredNovedades.map((novelty) => ({
-        Empleado:
-          novelty.empleado_nombre ||
-          "",
-        Documento:
-          novelty.documento ||
-          "",
-        Cargo:
-          novelty.cargo ||
-          "",
-        Sede:
-          novelty.sede_nombre ||
-          "",
-        "Tipo de novedad":
-          novelty.tipo_novedad ||
-          "",
-        "Fecha inicio":
-          formatDate(
-            novelty.fecha_inicio
-          ),
-        "Fecha fin":
-          formatDate(
-            novelty.fecha_fin ||
+      filteredNovedades.map(
+        (novelty) => ({
+          ID:
+            novelty.id,
+
+          Empleado:
+            novelty.empleado_nombre ||
+            "",
+
+          "ID empleado":
+            novelty.empleado_id,
+
+          Documento:
+            novelty.documento ||
+            "",
+
+          Cargo:
+            novelty.cargo ||
+            "",
+
+          Sede:
+            novelty.sede_nombre ||
+            "",
+
+          "Tipo de novedad":
+            novelty.tipo_novedad ||
+            "",
+
+          "Fecha inicio":
+            formatDate(
               novelty.fecha_inicio
-          ),
-        "Días en periodo":
-          getNoveltyDaysInSelectedMonth(
-            novelty,
-            selectedYear,
-            selectedMonth
-          ),
-        Estado:
-          novelty.estado ||
-          "",
-        "Afecta nómina":
-          novelty.afecta_nomina
-            ? "Sí"
-            : "No",
-        "Tratamiento nómina":
-          novelty.tratamiento_nomina ||
-          "",
-        Valor:
-          Number(novelty.valor) || 0,
-        Observación:
-          novelty.observacion ||
-          "",
-        "Observación nómina":
-          novelty.observacion_nomina ||
-          "",
-      }));
+            ),
+
+          "Fecha fin":
+            formatDate(
+              novelty.fecha_fin ||
+                novelty.fecha_inicio
+            ),
+
+          "Días originales":
+            novelty.dias ??
+            "",
+
+          "Días en periodo":
+            getNoveltyDaysInSelectedMonth(
+              novelty,
+              selectedYear,
+              selectedMonth
+            ),
+
+          Estado:
+            novelty.estado ||
+            "",
+
+          "Afecta nómina":
+            novelty.afecta_nomina
+              ? "Sí"
+              : "No",
+
+          "Tratamiento nómina":
+            novelty.tratamiento_nomina ||
+            "",
+
+          "Periodo nómina":
+            novelty.periodo_nomina ||
+            "",
+
+          Valor:
+            Number(
+              novelty.valor
+            ) || 0,
+
+          Observación:
+            novelty.observacion ||
+            "",
+
+          "Observación nómina":
+            novelty.observacion_nomina ||
+            "",
+
+          Soporte:
+            novelty.soporte_url ||
+            "",
+
+          "Creado por":
+            novelty.creado_por ||
+            "",
+
+          "Fecha creación":
+            novelty.created_at
+              ? String(
+                  novelty.created_at
+                )
+              : "",
+        })
+      );
 
     const noveltySheet =
       XLSX.utils.json_to_sheet(
@@ -1192,38 +1793,61 @@ const Reports: React.FC<ReportsProps> = ({
       "Novedades"
     );
 
-    /* -----------------------------------------------
-       TURNOS
-       ----------------------------------------------- */
+    /* =====================================================
+       HOJA 6 - TURNOS
+       ===================================================== */
 
     const shiftData =
       filteredAssignments.map(
         (assignment) => {
-          const shift = findShift(
-            assignment.shift
-          );
+          const shift =
+            findShift(
+              assignment.shift
+            );
 
           return {
-            Fecha: `${String(
-              assignment.day
-            ).padStart(2, "0")}/${String(
-              assignment.month + 1
-            ).padStart(2, "0")}/${assignment.year}`,
-            Sede: assignment.branch,
+            Fecha:
+              `${String(
+                assignment.day
+              ).padStart(
+                2,
+                "0"
+              )}/${String(
+                assignment.month + 1
+              ).padStart(
+                2,
+                "0"
+              )}/${assignment.year}`,
+
+            Sede:
+              assignment.branch,
+
             Empleado:
               assignment.employee,
+
             Turno:
               assignment.shift,
+
             Horas:
-              Number(shift?.hours) || 0,
+              Number(
+                shift?.hours
+              ) || 0,
+
             Inicio:
-              shift?.start || "",
+              shift?.start ||
+              "",
+
             Fin:
-              shift?.end || "",
+              shift?.end ||
+              "",
+
             "Inicio 2":
-              shift?.start2 || "",
+              shift?.start2 ||
+              "",
+
             "Fin 2":
-              shift?.end2 || "",
+              shift?.end2 ||
+              "",
           };
         }
       );
@@ -1239,7 +1863,110 @@ const Reports: React.FC<ReportsProps> = ({
       "Turnos"
     );
 
-    const fileName = `Reporte_Nomina_${months[selectedMonth]}_${selectedYear}.xlsx`;
+    /* =====================================================
+       AJUSTAR ANCHO DE COLUMNAS
+       ===================================================== */
+
+    const sheets = [
+      "Resumen",
+      "Asistencias",
+      "Horas Extra",
+      "Llegadas Tarde",
+      "Novedades",
+      "Turnos",
+    ];
+
+    sheets.forEach(
+      (sheetName) => {
+        const sheet =
+          workbook.Sheets[
+            sheetName
+          ];
+
+        if (!sheet) return;
+
+        const range =
+          XLSX.utils.decode_range(
+            sheet["!ref"] ||
+              "A1"
+          );
+
+        const widths: number[] =
+          [];
+
+        for (
+          let column =
+            range.s.c;
+          column <=
+          range.e.c;
+          column++
+        ) {
+          let maxLength = 12;
+
+          for (
+            let row =
+              range.s.r;
+            row <=
+            range.e.r;
+            row++
+          ) {
+            const cell =
+              sheet[
+                XLSX.utils.encode_cell(
+                  {
+                    r: row,
+                    c: column,
+                  }
+                )
+              ];
+
+            if (
+              cell &&
+              cell.v !==
+                undefined &&
+              cell.v !==
+                null
+            ) {
+              const length =
+                String(
+                  cell.v
+                ).length;
+
+              if (
+                length >
+                maxLength
+              ) {
+                maxLength =
+                  length;
+              }
+            }
+          }
+
+          widths[column] =
+            Math.min(
+              Math.max(
+                maxLength + 2,
+                12
+              ),
+              45
+            );
+        }
+
+        sheet["!cols"] =
+          widths.map(
+            (width) => ({
+              wch: width,
+            })
+          );
+      }
+    );
+
+    /* =====================================================
+       NOMBRE DEL ARCHIVO
+       ===================================================== */
+
+    const fileName =
+      `Reporte_Nomina_${months[selectedMonth]}_${selectedYear}.xlsx`;
 
     XLSX.writeFile(
       workbook,
@@ -1256,7 +1983,8 @@ const Reports: React.FC<ReportsProps> = ({
       minHeight: "100vh",
       background: "#f5f6f8",
       padding: "24px",
-      boxSizing: "border-box" as const,
+      boxSizing:
+        "border-box" as const,
       fontFamily:
         "Inter, Arial, sans-serif",
     },
@@ -1272,7 +2000,8 @@ const Reports: React.FC<ReportsProps> = ({
         "space-between",
       alignItems: "center",
       gap: "20px",
-      flexWrap: "wrap" as const,
+      flexWrap:
+        "wrap" as const,
       boxShadow:
         "0 8px 24px rgba(0,0,0,0.10)",
     },
@@ -1311,7 +2040,8 @@ const Reports: React.FC<ReportsProps> = ({
       display: "flex",
       gap: "16px",
       alignItems: "end",
-      flexWrap: "wrap" as const,
+      flexWrap:
+        "wrap" as const,
     },
 
     field: {
@@ -1402,7 +2132,8 @@ const Reports: React.FC<ReportsProps> = ({
 
     tableContainer: {
       width: "100%",
-      overflowX: "auto" as const,
+      overflowX:
+        "auto" as const,
     },
 
     table: {
@@ -1448,7 +2179,8 @@ const Reports: React.FC<ReportsProps> = ({
       border:
         "1px solid #fecaca",
       color: "#991b1b",
-      padding: "14px 16px",
+      padding:
+        "14px 16px",
       borderRadius: "10px",
       marginBottom: "20px",
     },
@@ -1471,24 +2203,36 @@ const Reports: React.FC<ReportsProps> = ({
 
   return (
     <div style={styles.page}>
+
       {/* HEADER */}
 
       <div style={styles.header}>
         <div>
-          <h1 style={styles.headerTitle}>
+          <h1
+            style={
+              styles.headerTitle
+            }
+          >
             Reporte de Nómina
           </h1>
 
-          <p style={styles.headerSubtitle}>
+          <p
+            style={
+              styles.headerSubtitle
+            }
+          >
             {months[selectedMonth]}{" "}
             {selectedYear} · Resumen de
-            asistencia, horas y novedades
+            asistencia, horas y
+            novedades
           </p>
         </div>
 
         <button
           type="button"
-          style={styles.exportButton}
+          style={
+            styles.exportButton
+          }
           onClick={exportExcel}
         >
           Exportar Excel
@@ -1497,9 +2241,15 @@ const Reports: React.FC<ReportsProps> = ({
 
       {/* FILTROS */}
 
-      <div style={styles.filtersCard}>
+      <div
+        style={
+          styles.filtersCard
+        }
+      >
         <div style={styles.field}>
-          <label style={styles.label}>
+          <label
+            style={styles.label}
+          >
             Mes
           </label>
 
@@ -1508,7 +2258,9 @@ const Reports: React.FC<ReportsProps> = ({
             value={selectedMonth}
             onChange={(e) =>
               setSelectedMonth(
-                Number(e.target.value)
+                Number(
+                  e.target.value
+                )
               )
             }
           >
@@ -1526,7 +2278,9 @@ const Reports: React.FC<ReportsProps> = ({
         </div>
 
         <div style={styles.field}>
-          <label style={styles.label}>
+          <label
+            style={styles.label}
+          >
             Año
           </label>
 
@@ -1535,7 +2289,9 @@ const Reports: React.FC<ReportsProps> = ({
             value={selectedYear}
             onChange={(e) =>
               setSelectedYear(
-                Number(e.target.value)
+                Number(
+                  e.target.value
+                )
               )
             }
           >
@@ -1551,7 +2307,9 @@ const Reports: React.FC<ReportsProps> = ({
         </div>
 
         <div style={styles.field}>
-          <label style={styles.label}>
+          <label
+            style={styles.label}
+          >
             Sede
           </label>
 
@@ -1585,7 +2343,9 @@ const Reports: React.FC<ReportsProps> = ({
       {/* ERROR */}
 
       {error && (
-        <div style={styles.error}>
+        <div
+          style={styles.error}
+        >
           {error}
         </div>
       )}
@@ -1593,8 +2353,12 @@ const Reports: React.FC<ReportsProps> = ({
       {/* LOADING */}
 
       {loading ? (
-        <div style={styles.section}>
-          <div style={styles.empty}>
+        <div
+          style={styles.section}
+        >
+          <div
+            style={styles.empty}
+          >
             Cargando información...
           </div>
         </div>
@@ -1602,63 +2366,141 @@ const Reports: React.FC<ReportsProps> = ({
         <>
           {/* KPIs */}
 
-          <div style={styles.kpiGrid}>
-            <div style={styles.kpiCard}>
-              <div style={styles.kpiLabel}>
+          <div
+            style={styles.kpiGrid}
+          >
+            <div
+              style={
+                styles.kpiCard
+              }
+            >
+              <div
+                style={
+                  styles.kpiLabel
+                }
+              >
                 Colaboradores
               </div>
 
-              <div style={styles.kpiValue}>
+              <div
+                style={
+                  styles.kpiValue
+                }
+              >
                 {kpis.collaborators}
               </div>
             </div>
 
-            <div style={styles.kpiCard}>
-              <div style={styles.kpiLabel}>
+            <div
+              style={
+                styles.kpiCard
+              }
+            >
+              <div
+                style={
+                  styles.kpiLabel
+                }
+              >
                 Horas pagadas
               </div>
 
-              <div style={styles.kpiValue}>
-                {kpis.totalHours.toFixed(2)}
+              <div
+                style={
+                  styles.kpiValue
+                }
+              >
+                {kpis.totalHours.toFixed(
+                  2
+                )}
               </div>
             </div>
 
-            <div style={styles.kpiCard}>
-              <div style={styles.kpiLabel}>
+            <div
+              style={
+                styles.kpiCard
+              }
+            >
+              <div
+                style={
+                  styles.kpiLabel
+                }
+              >
                 Horas extra
               </div>
 
-              <div style={styles.kpiValue}>
-                {kpis.extraHours.toFixed(2)}
+              <div
+                style={
+                  styles.kpiValue
+                }
+              >
+                {kpis.extraHours.toFixed(
+                  2
+                )}
               </div>
             </div>
 
-            <div style={styles.kpiCard}>
-              <div style={styles.kpiLabel}>
+            <div
+              style={
+                styles.kpiCard
+              }
+            >
+              <div
+                style={
+                  styles.kpiLabel
+                }
+              >
                 Llegadas tarde
               </div>
 
-              <div style={styles.kpiValue}>
+              <div
+                style={
+                  styles.kpiValue
+                }
+              >
                 {kpis.lateCount}
               </div>
             </div>
 
-            <div style={styles.kpiCard}>
-              <div style={styles.kpiLabel}>
+            <div
+              style={
+                styles.kpiCard
+              }
+            >
+              <div
+                style={
+                  styles.kpiLabel
+                }
+              >
                 Novedades
               </div>
 
-              <div style={styles.kpiValue}>
+              <div
+                style={
+                  styles.kpiValue
+                }
+              >
                 {kpis.noveltyCount}
               </div>
             </div>
 
-            <div style={styles.kpiCard}>
-              <div style={styles.kpiLabel}>
+            <div
+              style={
+                styles.kpiCard
+              }
+            >
+              <div
+                style={
+                  styles.kpiLabel
+                }
+              >
                 Días de novedad
               </div>
 
-              <div style={styles.kpiValue}>
+              <div
+                style={
+                  styles.kpiValue
+                }
+              >
                 {kpis.noveltyDays}
               </div>
             </div>
@@ -1666,67 +2508,133 @@ const Reports: React.FC<ReportsProps> = ({
 
           {/* RESUMEN */}
 
-          <div style={styles.section}>
-            <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>
-                Resumen por colaborador
+          <div
+            style={styles.section}
+          >
+            <div
+              style={
+                styles.sectionHeader
+              }
+            >
+              <h2
+                style={
+                  styles.sectionTitle
+                }
+              >
+                Resumen por
+                colaborador
               </h2>
 
-              <span style={styles.badge}>
-                {summary.length} registros
+              <span
+                style={styles.badge}
+              >
+                {summary.length}{" "}
+                registros
               </span>
             </div>
 
             <div
-              style={styles.tableContainer}
+              style={
+                styles.tableContainer
+              }
             >
-              {summary.length === 0 ? (
-                <div style={styles.empty}>
+              {summary.length ===
+              0 ? (
+                <div
+                  style={
+                    styles.empty
+                  }
+                >
                   No hay información
                   disponible para el
-                  periodo seleccionado.
+                  periodo
+                  seleccionado.
                 </div>
               ) : (
-                <table style={styles.table}>
+                <table
+                  style={
+                    styles.table
+                  }
+                >
                   <thead>
                     <tr>
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Empleado
                       </th>
 
-                      <th style={styles.th}>
-                        Sede
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
+                        Sedes
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Días
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Tarde
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Minutos
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Horas normales
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Horas extra
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Horas pagadas
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Novedades
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Días novedad
                       </th>
                     </tr>
@@ -1734,56 +2642,113 @@ const Reports: React.FC<ReportsProps> = ({
 
                   <tbody>
                     {summary.map(
-                      (item, index) => (
+                      (
+                        item,
+                        index
+                      ) => (
                         <tr
-                          key={`${item.employee}-${item.branch}-${index}`}
+                          key={`${item.employee}-${index}`}
                         >
-                          <td style={styles.td}>
+                          <td
+                            style={
+                              styles.td
+                            }
+                          >
                             <strong>
-                              {item.employee}
+                              {
+                                item.employee
+                              }
                             </strong>
                           </td>
 
-                          <td style={styles.td}>
-                            {item.branch}
+                          <td
+                            style={
+                              styles.td
+                            }
+                          >
+                            {item.branches.join(
+                              ", "
+                            )}
                           </td>
 
-                          <td style={styles.td}>
-                            {item.daysWorked}
+                          <td
+                            style={
+                              styles.td
+                            }
+                          >
+                            {
+                              item.daysWorked
+                            }
                           </td>
 
-                          <td style={styles.td}>
-                            {item.lateCount}
+                          <td
+                            style={
+                              styles.td
+                            }
+                          >
+                            {
+                              item.lateCount
+                            }
                           </td>
 
-                          <td style={styles.td}>
-                            {item.lateMinutes}
+                          <td
+                            style={
+                              styles.td
+                            }
+                          >
+                            {
+                              item.lateMinutes
+                            }
                           </td>
 
-                          <td style={styles.td}>
+                          <td
+                            style={
+                              styles.td
+                            }
+                          >
                             {item.normalHours.toFixed(
                               2
                             )}
                           </td>
 
-                          <td style={styles.td}>
+                          <td
+                            style={
+                              styles.td
+                            }
+                          >
                             {item.extraHours.toFixed(
                               2
                             )}
                           </td>
 
-                          <td style={styles.td}>
+                          <td
+                            style={
+                              styles.td
+                            }
+                          >
                             {item.paidHours.toFixed(
                               2
                             )}
                           </td>
 
-                          <td style={styles.td}>
-                            {item.noveltyCount}
+                          <td
+                            style={
+                              styles.td
+                            }
+                          >
+                            {
+                              item.noveltyCount
+                            }
                           </td>
 
-                          <td style={styles.td}>
-                            {item.noveltyDays}
+                          <td
+                            style={
+                              styles.td
+                            }
+                          >
+                            {
+                              item.noveltyDays
+                            }
                           </td>
                         </tr>
                       )
@@ -1796,63 +2761,125 @@ const Reports: React.FC<ReportsProps> = ({
 
           {/* NOVEDADES */}
 
-          <div style={styles.section}>
-            <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>
+          <div
+            style={styles.section}
+          >
+            <div
+              style={
+                styles.sectionHeader
+              }
+            >
+              <h2
+                style={
+                  styles.sectionTitle
+                }
+              >
                 Novedades de nómina
               </h2>
 
-              <span style={styles.badge}>
-                {filteredNovedades.length} novedades
+              <span
+                style={styles.badge}
+              >
+                {
+                  filteredNovedades.length
+                }{" "}
+                novedades
               </span>
             </div>
 
             <div
-              style={styles.tableContainer}
+              style={
+                styles.tableContainer
+              }
             >
               {filteredNovedades.length ===
               0 ? (
-                <div style={styles.empty}>
+                <div
+                  style={
+                    styles.empty
+                  }
+                >
                   No hay novedades para
-                  el periodo seleccionado.
+                  el periodo
+                  seleccionado.
                 </div>
               ) : (
-                <table style={styles.table}>
+                <table
+                  style={
+                    styles.table
+                  }
+                >
                   <thead>
                     <tr>
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Empleado
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Sede
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Tipo
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Inicio
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Fin
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Días periodo
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Estado
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Tratamiento
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Valor
                       </th>
                     </tr>
@@ -1899,8 +2926,9 @@ const Reports: React.FC<ReportsProps> = ({
                                 styles.td
                               }
                             >
-                              {novelty.tipo_novedad ||
-                                ""}
+                              {
+                                novelty.tipo_novedad
+                              }
                             </td>
 
                             <td
@@ -1937,8 +2965,9 @@ const Reports: React.FC<ReportsProps> = ({
                                 styles.td
                               }
                             >
-                              {novelty.estado ||
-                                ""}
+                              {
+                                novelty.estado
+                              }
                             </td>
 
                             <td
@@ -1946,8 +2975,9 @@ const Reports: React.FC<ReportsProps> = ({
                                 styles.td
                               }
                             >
-                              {novelty.tratamiento_nomina ||
-                                ""}
+                              {
+                                novelty.tratamiento_nomina
+                              }
                             </td>
 
                             <td
@@ -1976,59 +3006,117 @@ const Reports: React.FC<ReportsProps> = ({
 
           {/* ASISTENCIAS */}
 
-          <div style={styles.section}>
-            <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>
+          <div
+            style={styles.section}
+          >
+            <div
+              style={
+                styles.sectionHeader
+              }
+            >
+              <h2
+                style={
+                  styles.sectionTitle
+                }
+              >
                 Detalle de asistencias
               </h2>
 
-              <span style={styles.badge}>
-                {attendanceWithHours.length} registros
+              <span
+                style={styles.badge}
+              >
+                {
+                  attendanceWithHours.length
+                }{" "}
+                registros
               </span>
             </div>
 
             <div
-              style={styles.tableContainer}
+              style={
+                styles.tableContainer
+              }
             >
               {attendanceWithHours.length ===
               0 ? (
-                <div style={styles.empty}>
+                <div
+                  style={
+                    styles.empty
+                  }
+                >
                   No hay asistencias para
-                  el periodo seleccionado.
+                  el periodo
+                  seleccionado.
                 </div>
               ) : (
-                <table style={styles.table}>
+                <table
+                  style={
+                    styles.table
+                  }
+                >
                   <thead>
                     <tr>
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Fecha
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Sede
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Empleado
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Programada
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Entrada
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Min. tarde
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Descuento
                       </th>
 
-                      <th style={styles.th}>
+                      <th
+                        style={
+                          styles.th
+                        }
+                      >
                         Horas
                       </th>
                     </tr>
@@ -2038,7 +3126,9 @@ const Reports: React.FC<ReportsProps> = ({
                     {attendanceWithHours.map(
                       (record) => (
                         <tr
-                          key={record.id}
+                          key={
+                            record.id
+                          }
                         >
                           <td
                             style={
@@ -2055,7 +3145,9 @@ const Reports: React.FC<ReportsProps> = ({
                               styles.td
                             }
                           >
-                            {record.branch}
+                            {
+                              record.branch
+                            }
                           </td>
 
                           <td
