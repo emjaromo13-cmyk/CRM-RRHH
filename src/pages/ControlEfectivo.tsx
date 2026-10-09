@@ -22,6 +22,11 @@ type Corte = {
   total_retiros: string | number
   efectivo_generado: string | number
   diferencia: string | number
+  estado_revision: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'
+  revisado_por_nombre: string | null
+  revisado_por_username: string | null
+  revisado_en: string | null
+  observacion_revision: string | null
 }
 
 type Retiro = {
@@ -203,6 +208,54 @@ export default function ControlEfectivo() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const revisarCorte = async (
+    corte: Corte,
+    estado: 'APROBADO' | 'RECHAZADO',
+  ) => {
+    const observacion = window.prompt(
+      estado === 'RECHAZADO'
+        ? 'Explica por qué se rechaza este corte (obligatorio):'
+        : 'Observaciones de la aprobación (opcional):',
+      corte.observacion_revision || '',
+    )
+
+    if (observacion === null) return
+
+    if (estado === 'RECHAZADO' && !observacion.trim()) {
+      setError('Debes escribir una observación para rechazar el corte.')
+      return
+    }
+
+    setError('')
+    setMensaje('')
+    setGuardando(true)
+
+    try {
+      await peticion(`/api/control-efectivo/${corte.id}/revision`, {
+        method: 'POST',
+        body: JSON.stringify({
+          estado_revision: estado,
+          observacion_revision: observacion.trim(),
+        }),
+      })
+
+      await cargarCortes()
+      setMensaje(
+        estado === 'APROBADO'
+          ? 'Corte aprobado correctamente.'
+          : 'Corte rechazado correctamente.',
+      )
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'No fue posible guardar la revisión.',
+      )
+    } finally {
+      setGuardando(false)
+    }
+  }
+
   const abrirRetiros = async (corte: Corte) => {
     setCorteActivo(corte)
     setError('')
@@ -325,8 +378,23 @@ export default function ControlEfectivo() {
           'Efectivo recibido (COP)': recibido,
           'Total retiros (COP)': retirosTotal,
           'Diferencia (COP)': diferencia,
-          'Estado': diferencia === 0 ? 'Cuadra' : diferencia > 0 ? 'Sobrante' : 'Faltante',
-          'Observaciones': corte.observaciones || '',
+          'Estado financiero': diferencia === 0
+            ? 'Cuadra'
+            : diferencia > 0
+              ? 'Sobrante'
+              : 'Faltante',
+          'Estado de revisión': corte.estado_revision === 'APROBADO'
+            ? 'Aprobado'
+            : corte.estado_revision === 'RECHAZADO'
+              ? 'Rechazado'
+              : 'Pendiente de revisión',
+          'Revisado por': corte.revisado_por_nombre || '',
+          'Usuario revisor': corte.revisado_por_username || '',
+          'Fecha de revisión': corte.revisado_en
+            ? new Date(corte.revisado_en).toLocaleString('es-CO')
+            : '',
+          'Observación de revisión': corte.observacion_revision || '',
+          'Observaciones del corte': corte.observaciones || '',
         }
       })
 
@@ -354,9 +422,23 @@ export default function ControlEfectivo() {
       const hojaRetiros = XLSX.utils.json_to_sheet(filasRetiros)
 
       hojaCortes['!cols'] = [
-        { wch: 12 }, { wch: 20 }, { wch: 26 }, { wch: 14 },
-        { wch: 14 }, { wch: 18 }, { wch: 20 }, { wch: 22 },
-        { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 40 },
+        { wch: 12 }, // ID del corte
+        { wch: 20 }, // Sede
+        { wch: 26 }, // Responsable
+        { wch: 14 }, // Fecha inicial
+        { wch: 14 }, // Fecha final
+        { wch: 18 }, // Fecha de recepción
+        { wch: 20 }, // Ventas
+        { wch: 22 }, // Efectivo recibido
+        { wch: 20 }, // Total retiros
+        { wch: 18 }, // Diferencia
+        { wch: 18 }, // Estado financiero
+        { wch: 24 }, // Estado de revisión
+        { wch: 25 }, // Revisado por
+        { wch: 20 }, // Usuario revisor
+        { wch: 24 }, // Fecha de revisión
+        { wch: 40 }, // Observación de revisión
+        { wch: 40 }, // Observaciones del corte
       ]
 
       hojaRetiros['!cols'] = [
@@ -573,7 +655,8 @@ export default function ControlEfectivo() {
                   <th className="p-3 text-right">Recibido</th>
                   <th className="p-3 text-right">Retiros</th>
                   <th className="p-3 text-right">Diferencia</th>
-                  <th className="p-3">Estado</th>
+                  <th className="p-3">Estado financiero</th>
+                  <th className="p-3">Revisión</th>
                   <th className="p-3">Acciones</th>
                 </tr>
               </thead>
@@ -599,6 +682,56 @@ export default function ControlEfectivo() {
                         <span className={`whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${diferencia === 0 ? 'bg-green-100 text-green-800' : diferencia > 0 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
                           {diferencia === 0 ? 'Cuadra' : diferencia > 0 ? 'Sobrante' : 'Faltante'}
                         </span>
+                      </td>
+                      <td className="p-3">
+                        <div className="space-y-2">
+                          <span className={`inline-block whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${
+                            corte.estado_revision === 'APROBADO'
+                              ? 'bg-green-100 text-green-800'
+                              : corte.estado_revision === 'RECHAZADO'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {corte.estado_revision === 'APROBADO'
+                              ? 'Aprobado'
+                              : corte.estado_revision === 'RECHAZADO'
+                                ? 'Rechazado'
+                                : 'Pendiente de revisión'}
+                          </span>
+                          {corte.revisado_por_nombre && (
+                            <p className="text-xs text-slate-600">
+                              Revisó: {corte.revisado_por_nombre}
+                            </p>
+                          )}
+                          {corte.revisado_en && (
+                            <p className="text-xs text-slate-500">
+                              Fecha: {new Date(corte.revisado_en).toLocaleString('es-CO')}
+                            </p>
+                          )}
+                          {corte.observacion_revision && (
+                            <p className="max-w-xs whitespace-normal text-xs text-slate-600">
+                              Observación: {corte.observacion_revision}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={guardando}
+                              className="font-semibold text-green-700 hover:underline disabled:opacity-50"
+                              onClick={() => void revisarCorte(corte, 'APROBADO')}
+                            >
+                              Aprobar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={guardando}
+                              className="font-semibold text-red-700 hover:underline disabled:opacity-50"
+                              onClick={() => void revisarCorte(corte, 'RECHAZADO')}
+                            >
+                              Rechazar
+                            </button>
+                          </div>
+                        </div>
                       </td>
                       <td className="p-3">
                         <div className="flex flex-wrap gap-2">

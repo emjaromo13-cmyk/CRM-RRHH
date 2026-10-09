@@ -1143,81 +1143,6 @@ app.delete(
 )
 
 // =====================================================
-// ELIMINAR ASISTENCIA
-// =====================================================
-
-app.delete(
-  '/api/asistencias/:id',
-  verificarToken,
-  permitirRoles(
-    'ADMIN',
-    'LIDER_ZONA_1',
-    'LIDER_ZONA_2',
-    'LIDER_GIGANTE',
-    'LIDER_ZULUAGA'
-  ),
-  async (req, res) => {
-    try {
-      const { id } = req.params
-
-      const asistenciaActual = await pool.query(
-        `
-        SELECT sede_id
-        FROM asistencias
-        WHERE id = $1
-        `,
-        [id]
-      )
-
-      if (asistenciaActual.rows.length === 0) {
-        return res.status(404).json({
-          mensaje: 'Asistencia no encontrada',
-        })
-      }
-
-      const sedeId = asistenciaActual.rows[0].sede_id
-
-      if (
-        req.usuario.rol !== 'ADMIN' &&
-        req.usuario.rol !== 'JEFE'
-      ) {
-        const sedesPermitidas =
-          sedesPorRol[req.usuario.rol]
-
-        if (
-          !sedesPermitidas ||
-          !sedesPermitidas.includes(Number(sedeId))
-        ) {
-          return res.status(403).json({
-            mensaje:
-              'No tienes permiso para eliminar esta asistencia',
-          })
-        }
-      }
-
-      await pool.query(
-        `
-        DELETE FROM asistencias
-        WHERE id = $1
-        `,
-        [id]
-      )
-
-      res.json({
-        mensaje: 'Asistencia eliminada correctamente',
-      })
-    } catch (error) {
-      console.error('Error al eliminar asistencia:', error)
-
-      res.status(500).json({
-        mensaje: 'Error al eliminar asistencia',
-        error: error.message,
-      })
-    }
-  }
-)
-
-// =====================================================
 // OBTENER SEDES (FILTRADAS POR LÍDER)
 // =====================================================
 
@@ -1677,6 +1602,7 @@ app.post('/api/login', async (req, res) => {
     })
   }
 })
+
 // =====================================================
 // NOVEDADES DE NÓMINA
 // =====================================================
@@ -2199,6 +2125,7 @@ app.delete(
     }
   }
 )
+
 // =====================================================
 // API CONTROL DE EFECTIVO - SOLO ADMIN
 // =====================================================
@@ -2377,6 +2304,11 @@ app.put(
             efectivo_recibido = $6,
             ventas_syscafe = $7,
             observaciones = $8,
+            estado_revision = 'PENDIENTE',
+            revisado_por_nombre = NULL,
+            revisado_por_username = NULL,
+            revisado_en = NULL,
+            observacion_revision = NULL,
             actualizado_en = NOW()
         WHERE id = $9
         RETURNING *
@@ -2396,6 +2328,81 @@ app.put(
     } catch (error) {
       console.error('Error actualizando corte:', error)
       res.status(500).json({ mensaje: 'Error actualizando el corte' })
+    }
+  }
+)
+
+app.post(
+  '/api/control-efectivo/:id/revision',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id)
+      const { estado_revision, observacion_revision } = req.body
+
+      const estado = String(estado_revision || '').trim().toUpperCase()
+      const observacion = String(observacion_revision || '').trim()
+
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({
+          mensaje: 'Identificador de corte inválido.',
+        })
+      }
+
+      if (!['APROBADO', 'RECHAZADO'].includes(estado)) {
+        return res.status(400).json({
+          mensaje: 'El estado debe ser APROBADO o RECHAZADO.',
+        })
+      }
+
+      if (estado === 'RECHAZADO' && !observacion) {
+        return res.status(400).json({
+          mensaje: 'Debes escribir una observación para rechazar el corte.',
+        })
+      }
+
+      const usuario = req.usuario
+
+      const resultado = await pool.query(
+        `
+        UPDATE control_efectivo_cortes
+        SET estado_revision = $1,
+            revisado_por_nombre = $2,
+            revisado_por_username = $3,
+            revisado_en = NOW(),
+            observacion_revision = $4,
+            actualizado_en = NOW()
+        WHERE id = $5
+        RETURNING *
+        `,
+        [
+          estado,
+          usuario.nombre || usuario.username || 'Administrador',
+          usuario.username || null,
+          observacion || null,
+          id,
+        ]
+      )
+
+      if (!resultado.rowCount) {
+        return res.status(404).json({
+          mensaje: 'Corte de efectivo no encontrado.',
+        })
+      }
+
+      return res.json({
+        mensaje: estado === 'APROBADO'
+          ? 'Corte aprobado correctamente.'
+          : 'Corte rechazado correctamente.',
+        corte: resultado.rows[0],
+      })
+    } catch (error) {
+      console.error('Error revisando corte de efectivo:', error)
+
+      return res.status(500).json({
+        mensaje: 'Error guardando la revisión del corte.',
+      })
     }
   }
 )
@@ -2461,20 +2468,46 @@ app.post(
         return res.status(404).json({ mensaje: 'Corte no encontrado.' })
       }
 
-      const resultado = await pool.query(
-        `
-        INSERT INTO control_efectivo_retiros
-          (corte_id, fecha, monto, retirado_por, motivo, detalle)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING *
-        `,
-        [
-          corteId, fecha, valor,
-          retirado_por.trim(), motivo.trim(), detalle || null,
-        ]
-      )
+      const client = await pool.connect()
 
-      res.status(201).json(resultado.rows[0])
+      try {
+        await client.query('BEGIN')
+
+        const resultado = await client.query(
+          `
+          INSERT INTO control_efectivo_retiros
+            (corte_id, fecha, monto, retirado_por, motivo, detalle)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING *
+          `,
+          [
+            corteId, fecha, valor,
+            retirado_por.trim(), motivo.trim(), detalle || null,
+          ]
+        )
+
+        await client.query(
+          `
+          UPDATE control_efectivo_cortes
+          SET estado_revision = 'PENDIENTE',
+              revisado_por_nombre = NULL,
+              revisado_por_username = NULL,
+              revisado_en = NULL,
+              observacion_revision = NULL,
+              actualizado_en = NOW()
+          WHERE id = $1
+          `,
+          [corteId]
+        )
+
+        await client.query('COMMIT')
+        return res.status(201).json(resultado.rows[0])
+      } catch (error) {
+        await client.query('ROLLBACK')
+        throw error
+      } finally {
+        client.release()
+      }
     } catch (error) {
       console.error('Error registrando retiro:', error)
       res.status(500).json({ mensaje: 'Error guardando el retiro' })
@@ -2487,26 +2520,65 @@ app.delete(
   verificarToken,
   permitirRoles('ADMIN'),
   async (req, res) => {
+    const id = Number(req.params.retiroId)
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        mensaje: 'Identificador inválido.',
+      })
+    }
+
+    const client = await pool.connect()
+
     try {
-      const id = Number(req.params.retiroId)
+      await client.query('BEGIN')
 
-      if (!Number.isInteger(id) || id <= 0) {
-        return res.status(400).json({ mensaje: 'Identificador inválido.' })
-      }
-
-      const resultado = await pool.query(
-        'DELETE FROM control_efectivo_retiros WHERE id = $1 RETURNING id',
+      const resultado = await client.query(
+        `
+        DELETE FROM control_efectivo_retiros
+        WHERE id = $1
+        RETURNING id, corte_id
+        `,
         [id]
       )
 
       if (!resultado.rowCount) {
-        return res.status(404).json({ mensaje: 'Retiro no encontrado.' })
+        await client.query('ROLLBACK')
+        return res.status(404).json({
+          mensaje: 'Retiro no encontrado.',
+        })
       }
 
-      res.json({ mensaje: 'Retiro eliminado correctamente.' })
+      const corteId = resultado.rows[0].corte_id
+
+      await client.query(
+        `
+        UPDATE control_efectivo_cortes
+        SET estado_revision = 'PENDIENTE',
+            revisado_por_nombre = NULL,
+            revisado_por_username = NULL,
+            revisado_en = NULL,
+            observacion_revision = NULL,
+            actualizado_en = NOW()
+        WHERE id = $1
+        `,
+        [corteId]
+      )
+
+      await client.query('COMMIT')
+
+      return res.json({
+        mensaje: 'Retiro eliminado correctamente. El corte quedó pendiente de revisión.',
+      })
     } catch (error) {
+      await client.query('ROLLBACK')
       console.error('Error eliminando retiro:', error)
-      res.status(500).json({ mensaje: 'Error eliminando el retiro' })
+
+      return res.status(500).json({
+        mensaje: 'Error eliminando el retiro.',
+      })
+    } finally {
+      client.release()
     }
   }
 )
@@ -2560,6 +2632,7 @@ app.delete(
 );
 // FIN API CONTROL DE EFECTIVO
 
+// =====================================================
 // INICIAR SERVIDOR
 // =====================================================
 
