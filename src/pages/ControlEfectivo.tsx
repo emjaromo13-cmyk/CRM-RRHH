@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 
 const API_URL = 'https://crm-rrhh-backend.onrender.com'
 
@@ -282,6 +283,79 @@ export default function ControlEfectivo() {
     return texto.includes(busqueda.toLowerCase())
   })
 
+  const descargarExcel = async () => {
+    try {
+      setError('')
+      setMensaje('')
+
+      const filasCortes = cortesFiltrados.map((corte) => {
+        const ventas = Number(corte.ventas_syscafe || 0)
+        const recibido = Number(corte.efectivo_recibido || 0)
+        const retirosTotal = Number(corte.total_retiros || 0)
+        const diferencia = recibido + retirosTotal - ventas
+
+        return {
+          'ID del corte': corte.id,
+          'Sede': corte.sede_nombre,
+          'Responsable de entrega': corte.responsable_entrega,
+          'Fecha inicial': fechaCorta(corte.fecha_inicio),
+          'Fecha final': fechaCorta(corte.fecha_fin),
+          'Fecha de recepción': fechaCorta(corte.fecha_recepcion),
+          'Ventas SysCafé (COP)': ventas,
+          'Efectivo recibido (COP)': recibido,
+          'Total retiros (COP)': retirosTotal,
+          'Diferencia (COP)': diferencia,
+          'Estado': diferencia === 0 ? 'Cuadra' : diferencia > 0 ? 'Sobrante' : 'Faltante',
+          'Observaciones': corte.observaciones || '',
+        }
+      })
+
+      const filasRetiros: Record<string, string | number>[] = []
+
+      for (const corte of cortesFiltrados) {
+        const datos = await peticion(`/api/control-efectivo/${corte.id}/retiros`)
+
+        for (const retiro of datos as Retiro[]) {
+          filasRetiros.push({
+            'ID del corte': corte.id,
+            'Sede': corte.sede_nombre,
+            'Periodo': `${fechaCorta(corte.fecha_inicio)} al ${fechaCorta(corte.fecha_fin)}`,
+            'Fecha del retiro': fechaCorta(retiro.fecha),
+            'Monto (COP)': Number(retiro.monto || 0),
+            'Retirado por': retiro.retirado_por || '',
+            'Motivo': retiro.motivo || '',
+            'Detalle': retiro.detalle || '',
+          })
+        }
+      }
+
+      const libro = XLSX.utils.book_new()
+      const hojaCortes = XLSX.utils.json_to_sheet(filasCortes)
+      const hojaRetiros = XLSX.utils.json_to_sheet(filasRetiros)
+
+      hojaCortes['!cols'] = [
+        { wch: 12 }, { wch: 20 }, { wch: 26 }, { wch: 14 },
+        { wch: 14 }, { wch: 18 }, { wch: 20 }, { wch: 22 },
+        { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 40 },
+      ]
+
+      hojaRetiros['!cols'] = [
+        { wch: 12 }, { wch: 20 }, { wch: 26 }, { wch: 18 },
+        { wch: 18 }, { wch: 25 }, { wch: 25 }, { wch: 40 },
+      ]
+
+      XLSX.utils.book_append_sheet(libro, hojaCortes, 'Consolidado')
+      XLSX.utils.book_append_sheet(libro, hojaRetiros, 'Detalle de retiros')
+
+      const fechaArchivo = new Date().toISOString().slice(0, 10)
+      XLSX.writeFile(libro, `Control_Efectivo_${fechaArchivo}.xlsx`)
+
+      setMensaje('Excel descargado correctamente.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No fue posible generar el Excel.')
+    }
+  }
+
   const actualizar = (campoForm: keyof typeof inicial, valor: string) => {
     setForm((anterior) => ({ ...anterior, [campoForm]: valor }))
   }
@@ -446,6 +520,14 @@ export default function ControlEfectivo() {
           </button>
           <button type="button" className={`${boton} border border-slate-300 text-slate-700 hover:bg-slate-50`} onClick={() => { setFiltroSede(''); setDesde(''); setHasta(''); setBusqueda('') }}>
             Limpiar filtros
+          </button>
+          <button
+            type="button"
+            className={`${boton} bg-green-700 text-white hover:bg-green-800`}
+            onClick={() => void descargarExcel()}
+            disabled={cargando || cortesFiltrados.length === 0}
+          >
+            Descargar Excel
           </button>
         </div>
 
