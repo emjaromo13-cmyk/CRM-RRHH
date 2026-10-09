@@ -268,13 +268,33 @@ export default function ControlEfectivo() {
 
   const resumen = useMemo(() => {
     return cortes.reduce(
-      (total, corte) => ({
-        ventas: total.ventas + Number(corte.ventas_syscafe || 0),
-        recibido: total.recibido + Number(corte.efectivo_recibido || 0),
-        retiros: total.retiros + Number(corte.total_retiros || 0),
-        diferencia: total.diferencia + Number(corte.diferencia || 0),
-      }),
-      { ventas: 0, recibido: 0, retiros: 0, diferencia: 0 },
+      (total, corte) => {
+        const diferencia =
+          Number(corte.efectivo_recibido || 0) +
+          Number(corte.total_retiros || 0) -
+          Number(corte.ventas_syscafe || 0)
+
+        return {
+          ventas: total.ventas + Number(corte.ventas_syscafe || 0),
+          recibido: total.recibido + Number(corte.efectivo_recibido || 0),
+          retiros: total.retiros + Number(corte.total_retiros || 0),
+          diferencia: total.diferencia + diferencia,
+          sobrantes: total.sobrantes + (diferencia > 0 ? diferencia : 0),
+          faltantes: total.faltantes + (diferencia < 0 ? Math.abs(diferencia) : 0),
+          cortesCuadrados: total.cortesCuadrados + (diferencia === 0 ? 1 : 0),
+          cortesConDiferencia: total.cortesConDiferencia + (diferencia !== 0 ? 1 : 0),
+        }
+      },
+      {
+        ventas: 0,
+        recibido: 0,
+        retiros: 0,
+        diferencia: 0,
+        sobrantes: 0,
+        faltantes: 0,
+        cortesCuadrados: 0,
+        cortesConDiferencia: 0,
+      },
     )
   }, [cortes])
 
@@ -474,14 +494,21 @@ export default function ControlEfectivo() {
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { titulo: 'Ventas en efectivo', valor: resumen.ventas },
-          { titulo: 'Efectivo recibido', valor: resumen.recibido },
-          { titulo: 'Total de retiros', valor: resumen.retiros },
-          { titulo: 'Diferencia acumulada', valor: resumen.diferencia },
+          { titulo: 'Ventas en efectivo', valor: dinero(resumen.ventas), color: 'text-slate-800' },
+          { titulo: 'Efectivo recibido', valor: dinero(resumen.recibido), color: 'text-slate-800' },
+          { titulo: 'Total de retiros', valor: dinero(resumen.retiros), color: 'text-slate-800' },
+          { titulo: 'Sobrantes acumulados', valor: dinero(resumen.sobrantes), color: 'text-emerald-700' },
+          { titulo: 'Faltantes acumulados', valor: dinero(resumen.faltantes), color: 'text-red-700' },
+          { titulo: 'Diferencia acumulada', valor: dinero(resumen.diferencia), color: 'text-slate-800' },
+          { titulo: 'Cortes cuadrados', valor: String(resumen.cortesCuadrados), color: 'text-emerald-700' },
+          { titulo: 'Cortes con diferencias', valor: String(resumen.cortesConDiferencia), color: 'text-red-700' },
         ].map((item) => (
-          <div key={item.titulo} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div
+            key={item.titulo}
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
             <p className="text-sm text-slate-500">{item.titulo}</p>
-            <p className="mt-2 text-xl font-bold text-slate-800">{dinero(item.valor)}</p>
+            <p className={`mt-2 text-xl font-bold ${item.color}`}>{item.valor}</p>
           </div>
         ))}
       </section>
