@@ -493,8 +493,56 @@ export default function ControlEfectivo() {
                       </td>
                       <td className="p-3">
                         <div className="flex flex-wrap gap-2">
-                          <button type="button" className="font-semibold text-blue-700 hover:underline" onClick={() => void abrirRetiros(corte)}>Retiros</button>
-                          <button type="button" className="font-semibold text-slate-700 hover:underline" onClick={() => editarCorte(corte)}>Editar</button>
+                          <button
+                            type="button"
+                            className="font-semibold text-blue-700 hover:underline"
+                            onClick={() => void abrirRetiros(corte)}
+                          >
+                            Retiros
+                          </button>
+
+                          <button
+                            type="button"
+                            className="font-semibold text-slate-700 hover:underline"
+                            onClick={() => editarCorte(corte)}
+                          >
+                            Editar
+                          </button>
+
+                          <button
+                            type="button"
+                            className="font-semibold text-red-700 hover:underline"
+                            onClick={async () => {
+                              if (!window.confirm(
+                                `¿Eliminar el corte de ${corte.sede_nombre} del periodo ${fechaCorta(corte.fecha_inicio)} al ${fechaCorta(corte.fecha_fin)}?`
+                              )) return
+
+                              try {
+                                setError('')
+                                setMensaje('')
+
+                                await peticion(`/api/control-efectivo/${corte.id}`, {
+                                  method: 'DELETE',
+                                })
+
+                                if (corteActivo?.id === corte.id) {
+                                  setCorteActivo(null)
+                                  setRetiros([])
+                                }
+
+                                await cargarCortes()
+                                setMensaje('Corte eliminado correctamente.')
+                              } catch (e) {
+                                setError(
+                                  e instanceof Error
+                                    ? e.message
+                                    : 'No fue posible eliminar el corte.'
+                                )
+                              }
+                            }}
+                          >
+                            Eliminar
+                          </button>
                         </div>
                       </td>
                     </tr>

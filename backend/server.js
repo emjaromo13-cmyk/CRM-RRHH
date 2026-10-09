@@ -1,4 +1,4 @@
-const express = require('express')
+﻿const express = require('express')
 const cors = require('cors')
 const { Pool } = require('pg')
 const bcrypt = require('bcryptjs')
@@ -2511,6 +2511,53 @@ app.delete(
   }
 )
 
+app.delete(
+  '/api/control-efectivo/:id',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    const { id } = req.params;
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const resultado = await client.query(
+        `DELETE FROM control_efectivo_cortes
+         WHERE id = $1
+         RETURNING id`,
+        [id]
+      );
+
+      if (resultado.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({
+          mensaje: 'No se encontró el corte de efectivo.',
+        });
+      }
+
+      await client.query(
+        'DELETE FROM control_efectivo_retiros WHERE corte_id = $1',
+        [id]
+      );
+
+      await client.query('COMMIT');
+
+      return res.json({
+        mensaje: 'Corte de efectivo eliminado correctamente.',
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error eliminando corte de efectivo:', error);
+
+      return res.status(500).json({
+        mensaje: 'No se pudo eliminar el corte de efectivo.',
+      });
+    } finally {
+      client.release();
+    }
+  }
+);
 // FIN API CONTROL DE EFECTIVO
 
 // INICIAR SERVIDOR
