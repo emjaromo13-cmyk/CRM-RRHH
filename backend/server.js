@@ -2200,6 +2200,319 @@ app.delete(
   }
 )
 // =====================================================
+// API CONTROL DE EFECTIVO - SOLO ADMIN
+// =====================================================
+
+app.get(
+  '/api/control-efectivo',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const { sede_id, fecha_inicio, fecha_fin } = req.query
+
+      const resultado = await pool.query(
+        `
+        SELECT
+          c.*,
+          s.nombre AS sede_nombre,
+          COALESCE(SUM(r.monto), 0)::NUMERIC(14,2) AS total_retiros,
+          (
+            c.efectivo_recibido + COALESCE(SUM(r.monto), 0)
+          )::NUMERIC(14,2) AS efectivo_generado,
+          (
+            c.efectivo_recibido
+            + COALESCE(SUM(r.monto), 0)
+            - c.ventas_syscafe
+          )::NUMERIC(14,2) AS diferencia
+        FROM control_efectivo_cortes c
+        INNER JOIN sedes s ON s.id = c.sede_id
+        LEFT JOIN control_efectivo_retiros r ON r.corte_id = c.id
+        WHERE ($1::INTEGER IS NULL OR c.sede_id = $1)
+          AND ($2::DATE IS NULL OR c.fecha_inicio >= $2)
+          AND ($3::DATE IS NULL OR c.fecha_fin <= $3)
+        GROUP BY c.id, s.nombre
+        ORDER BY c.fecha_inicio DESC, c.id DESC
+        `,
+        [
+          sede_id ? Number(sede_id) : null,
+          fecha_inicio || null,
+          fecha_fin || null,
+        ]
+      )
+
+      res.json(resultado.rows)
+    } catch (error) {
+      console.error('Error consultando control de efectivo:', error)
+      res.status(500).json({ mensaje: 'Error consultando los cortes' })
+    }
+  }
+)
+
+app.post(
+  '/api/control-efectivo',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const {
+        sede_id,
+        fecha_inicio,
+        fecha_fin,
+        fecha_recepcion,
+        responsable_entrega,
+        efectivo_recibido,
+        ventas_syscafe,
+        observaciones,
+      } = req.body
+
+      const sede = Number(sede_id)
+      const recibido = Number(efectivo_recibido)
+      const ventas = Number(ventas_syscafe)
+
+      if (
+        !Number.isInteger(sede) ||
+        !fecha_inicio ||
+        !fecha_fin ||
+        !responsable_entrega?.trim() ||
+        efectivo_recibido === '' ||
+        efectivo_recibido === undefined ||
+        ventas_syscafe === '' ||
+        ventas_syscafe === undefined ||
+        !Number.isFinite(recibido) ||
+        !Number.isFinite(ventas) ||
+        recibido < 0 ||
+        ventas < 0 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(fecha_inicio) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(fecha_fin) ||
+        fecha_fin < fecha_inicio
+      ) {
+        return res.status(400).json({
+          mensaje: 'Verifica la sede, las fechas, el responsable y los valores.',
+        })
+      }
+
+      const resultado = await pool.query(
+        `
+        INSERT INTO control_efectivo_cortes (
+          sede_id, fecha_inicio, fecha_fin, fecha_recepcion,
+          responsable_entrega, efectivo_recibido,
+          ventas_syscafe, observaciones
+        )
+        VALUES (
+          $1, $2, $3, COALESCE($4::DATE, CURRENT_DATE),
+          $5, $6, $7, $8
+        )
+        RETURNING *
+        `,
+        [
+          sede,
+          fecha_inicio,
+          fecha_fin,
+          fecha_recepcion || null,
+          responsable_entrega.trim(),
+          recibido,
+          ventas,
+          observaciones || null,
+        ]
+      )
+
+      res.status(201).json(resultado.rows[0])
+    } catch (error) {
+      console.error('Error creando corte de efectivo:', error)
+      res.status(500).json({ mensaje: 'Error guardando el corte' })
+    }
+  }
+)
+
+app.put(
+  '/api/control-efectivo/:id',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id)
+      const {
+        sede_id,
+        fecha_inicio,
+        fecha_fin,
+        fecha_recepcion,
+        responsable_entrega,
+        efectivo_recibido,
+        ventas_syscafe,
+        observaciones,
+      } = req.body
+
+      const sede = Number(sede_id)
+      const recibido = Number(efectivo_recibido)
+      const ventas = Number(ventas_syscafe)
+
+      if (
+        !Number.isInteger(id) || id <= 0 ||
+        !Number.isInteger(sede) ||
+        !fecha_inicio || !fecha_fin ||
+        !responsable_entrega?.trim() ||
+        efectivo_recibido === '' ||
+        efectivo_recibido === undefined ||
+        ventas_syscafe === '' ||
+        ventas_syscafe === undefined ||
+        !Number.isFinite(recibido) ||
+        !Number.isFinite(ventas) ||
+        recibido < 0 || ventas < 0 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(fecha_inicio) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(fecha_fin) ||
+        fecha_fin < fecha_inicio
+      ) {
+        return res.status(400).json({ mensaje: 'Datos del corte inválidos.' })
+      }
+
+      const resultado = await pool.query(
+        `
+        UPDATE control_efectivo_cortes
+        SET sede_id = $1,
+            fecha_inicio = $2,
+            fecha_fin = $3,
+            fecha_recepcion = COALESCE($4::DATE, fecha_recepcion),
+            responsable_entrega = $5,
+            efectivo_recibido = $6,
+            ventas_syscafe = $7,
+            observaciones = $8,
+            actualizado_en = NOW()
+        WHERE id = $9
+        RETURNING *
+        `,
+        [
+          sede, fecha_inicio, fecha_fin, fecha_recepcion || null,
+          responsable_entrega.trim(), recibido, ventas,
+          observaciones || null, id,
+        ]
+      )
+
+      if (!resultado.rowCount) {
+        return res.status(404).json({ mensaje: 'Corte no encontrado.' })
+      }
+
+      res.json(resultado.rows[0])
+    } catch (error) {
+      console.error('Error actualizando corte:', error)
+      res.status(500).json({ mensaje: 'Error actualizando el corte' })
+    }
+  }
+)
+
+app.get(
+  '/api/control-efectivo/:id/retiros',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id)
+
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ mensaje: 'Identificador inválido.' })
+      }
+
+      const resultado = await pool.query(
+        `
+        SELECT *
+        FROM control_efectivo_retiros
+        WHERE corte_id = $1
+        ORDER BY fecha DESC, id DESC
+        `,
+        [id]
+      )
+
+      res.json(resultado.rows)
+    } catch (error) {
+      console.error('Error consultando retiros:', error)
+      res.status(500).json({ mensaje: 'Error consultando los retiros' })
+    }
+  }
+)
+
+app.post(
+  '/api/control-efectivo/:id/retiros',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const corteId = Number(req.params.id)
+      const { fecha, monto, retirado_por, motivo, detalle } = req.body
+      const valor = Number(monto)
+
+      if (
+        !Number.isInteger(corteId) || corteId <= 0 ||
+        !fecha ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(fecha) ||
+        monto === '' || monto === undefined ||
+        !Number.isFinite(valor) || valor <= 0 ||
+        !retirado_por?.trim() ||
+        !motivo?.trim()
+      ) {
+        return res.status(400).json({ mensaje: 'Datos del retiro inválidos.' })
+      }
+
+      const corte = await pool.query(
+        'SELECT id FROM control_efectivo_cortes WHERE id = $1',
+        [corteId]
+      )
+
+      if (!corte.rowCount) {
+        return res.status(404).json({ mensaje: 'Corte no encontrado.' })
+      }
+
+      const resultado = await pool.query(
+        `
+        INSERT INTO control_efectivo_retiros
+          (corte_id, fecha, monto, retirado_por, motivo, detalle)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+        `,
+        [
+          corteId, fecha, valor,
+          retirado_por.trim(), motivo.trim(), detalle || null,
+        ]
+      )
+
+      res.status(201).json(resultado.rows[0])
+    } catch (error) {
+      console.error('Error registrando retiro:', error)
+      res.status(500).json({ mensaje: 'Error guardando el retiro' })
+    }
+  }
+)
+
+app.delete(
+  '/api/control-efectivo/retiros/:retiroId',
+  verificarToken,
+  permitirRoles('ADMIN'),
+  async (req, res) => {
+    try {
+      const id = Number(req.params.retiroId)
+
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ mensaje: 'Identificador inválido.' })
+      }
+
+      const resultado = await pool.query(
+        'DELETE FROM control_efectivo_retiros WHERE id = $1 RETURNING id',
+        [id]
+      )
+
+      if (!resultado.rowCount) {
+        return res.status(404).json({ mensaje: 'Retiro no encontrado.' })
+      }
+
+      res.json({ mensaje: 'Retiro eliminado correctamente.' })
+    } catch (error) {
+      console.error('Error eliminando retiro:', error)
+      res.status(500).json({ mensaje: 'Error eliminando el retiro' })
+    }
+  }
+)
+
+// FIN API CONTROL DE EFECTIVO
+
 // INICIAR SERVIDOR
 // =====================================================
 

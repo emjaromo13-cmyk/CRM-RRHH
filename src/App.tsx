@@ -7,6 +7,7 @@ import Attendance from './pages/Attendance'
 import Reports from './pages/Reports'
 import Dashboard from './pages/Dashboard'
 import Novedades from './pages/Novedades'
+import ControlEfectivo from './pages/ControlEfectivo'
 
 export type Page =
   | 'dashboard'
@@ -17,6 +18,7 @@ export type Page =
   | 'attendance'
   | 'reports'
   | 'novedades'
+  | 'controlEfectivo'
 
 export type Employee = {
   id: number
@@ -168,6 +170,7 @@ APP
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
+  const [tesoreriaOpen, setTesoreriaOpen] = useState(false)
 
   const [usuario, setUsuario] = useState<Usuario | null>(() => {
     const saved = localStorage.getItem('usuario')
@@ -1231,6 +1234,30 @@ export default function App() {
                   )
                 }
               />
+
+              <div className="space-y-1">
+                <button
+                  onClick={() => setTesoreriaOpen(!tesoreriaOpen)}
+                  className={`w-full flex items-center justify-between text-left px-4 py-3 rounded-xl transition ${
+                    page === 'controlEfectivo'
+                      ? 'bg-red-50 text-red-700 font-medium'
+                      : 'hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  <span> Tesorería</span>
+                  <span>{tesoreriaOpen ? '⌄' : '›'}</span>
+                </button>
+
+                {tesoreriaOpen && (
+                  <div className="ml-4 border-l-2 border-slate-200 pl-2">
+                    <MenuButton
+                      label="Control de Efectivo"
+                      active={page === 'controlEfectivo'}
+                      onClick={() => setPage('controlEfectivo')}
+                    />
+                  </div>
+                )}
+              </div>
             </>
           )}
 
@@ -1312,7 +1339,6 @@ export default function App() {
                   )
                 }
               />
-
               {/* NO REPORTES PARA JEFE */}
             </>
           )}
@@ -1389,7 +1415,7 @@ export default function App() {
                 assignments
               }
 
-             
+              
 
               selectedBranch={
                 selectedBranch
@@ -1548,6 +1574,11 @@ export default function App() {
       employees={employees}
     />
   )}
+
+        {/* CONTROL DE EFECTIVO */}
+        {page === 'controlEfectivo' && isAdmin && (
+          <ControlEfectivo />
+        )}
 
       </main>
 
