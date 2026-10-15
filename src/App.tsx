@@ -180,6 +180,7 @@ export default function App() {
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [loadingLogin, setLoadingLogin] = useState(false)
 
@@ -758,11 +759,17 @@ export default function App() {
 
   if (!usuario) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+     
+<div
+  className="min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat"
+  style={{ backgroundImage: "url('/fondo-login.png')" }}
+>
 
         <form
           onSubmit={handleLogin}
-          className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-slate-200 p-8"
+          
+className="relative z-10 w-full max-w-md bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/60 p-8"
+
         >
 
           <div className="text-center mb-8">
@@ -827,18 +834,61 @@ export default function App() {
                 Contraseña
               </label>
 
-              <input
-                type="password"
-                value={password}
-                onChange={(e) =>
-                  setPassword(
-                    e.target.value
-                  )
-                }
-                placeholder="Ingresa tu contraseña"
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-red-500"
-                required
-              />
+              
+<div className="relative">
+  <input
+    type={showPassword ? 'text' : 'password'}
+    value={password}
+    onChange={(e) => setPassword(e.target.value)}
+    placeholder="Ingresa tu contraseña"
+    className="w-full border border-slate-300 rounded-xl px-4 py-3 pr-12 outline-none focus:ring-2 focus:ring-red-500"
+    autoComplete="current-password"
+    required
+  />
+
+  <button
+    type="button"
+    onClick={() => setShowPassword(!showPassword)}
+    className="absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 hover:text-red-600"
+    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+    title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+  >
+    {showPassword ? (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="22"
+        height="22"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M3 3l18 18" />
+        <path d="M10.6 10.6a2 2 0 002.8 2.8" />
+        <path d="M9.9 5.2A11 11 0 0121 12a11 11 0 01-3.2 4.2" />
+        <path d="M6.2 6.2A11 11 0 003 12a11 11 0 0018 0" />
+      </svg>
+    ) : (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="22"
+        height="22"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    )}
+  </button>
+</div>
+
 
             </div>
 
