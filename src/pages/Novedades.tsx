@@ -1381,8 +1381,11 @@ export default function Novedades({
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <path d="M12 4v16M7 8h6a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8" />
+                <circle cx="12" cy="8" r="4" />
+                <path d="M5 21v-2a7 7 0 0 1 14 0v2" />
               </svg>
             </div>
 
